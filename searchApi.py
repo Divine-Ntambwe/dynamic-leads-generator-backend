@@ -1,0 +1,40 @@
+# -------------------------------
+# Search API setup (SerpAPI)
+# -------------------------------
+from urllib import response
+
+import requests
+
+class SearchAPI:
+    SERPAPI_KEY = "c954f755cdd0317ea32b4c1bcffd9abe4cc4fb01ecbadf3379cbf9700050a98e"
+    MAX_RESULTS_PER_PAGE = 10
+    MAX_START_POSITION = 90  # SerpAPI max is 100 results (0-90 in steps of 10)
+
+    def search_google(self, query, start=0):
+        url = "https://serpapi.com/search"
+        params = {
+            "q": query,
+            "api_key": self.SERPAPI_KEY,
+            "engine": "google",
+            "num": self.MAX_RESULTS_PER_PAGE,
+            "start": start
+        }
+        
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            results = response.json()
+
+            urls = []
+            for result in results.get("organic_results", []):
+                link = result.get("link")
+                if link and not any(x in link.lower() for x in [
+                    "facebook.com", "linkedin.com", "instagram.com",
+                    "google.com", "youtube.com", "twitter.com"
+                ]):
+                    urls.append(link)
+            
+            return urls
+        except Exception as e:
+            print(f"Search API error for query '{query}' at start={start}: {e}")
+            return []
