@@ -1,4 +1,5 @@
 from searchApi import SearchAPI
+##checks for unfinished jobs 
 
 class queryHarvest:
     def __init__(self, db):

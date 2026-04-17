@@ -13,7 +13,7 @@ class SearchAPI:
     def search_google(self, query, start=0):
         url = "https://serpapi.com/search"
         params = {
-            "q": query,
+            "q": query, #search term
             "api_key": self.SERPAPI_KEY,
             "engine": "google",
             "num": self.MAX_RESULTS_PER_PAGE,

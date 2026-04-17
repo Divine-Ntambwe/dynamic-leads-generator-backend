@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from utils import generate_fingerprint
 
 EMAIL_REGEX = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
+#only caters for south african numbers
 PHONE_REGEX = r"^(?:\+27|0)(\d{2})\s?\d{3}\s?\d{4}$"
 
 def extract_school_data(html, url):
