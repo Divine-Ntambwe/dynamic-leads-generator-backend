@@ -1,13 +1,13 @@
 import psycopg2
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 class Database:
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
     def __init__(self):
-        self.conn = psycopg2.connect(
-            dbname="school_scrapper_db",
-            user="postgres",
-            password="Infinity",
-            host="localhost"
-        )
+        self.conn = psycopg2.connect(self.DATABASE_URL)
         self.conn.autocommit = True
 
     def url_exists(self, url_hash):

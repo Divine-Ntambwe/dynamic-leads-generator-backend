@@ -1,12 +1,12 @@
 import psycopg2
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 def init_database():
-    conn = psycopg2.connect(
-        dbname="school_scrapper_db",
-        user="postgres",
-        password="Infinity",
-        host="localhost"
-    )
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    conn = psycopg2.connect(DATABASE_URL)
+
     conn.autocommit = True
     
     with open('schema.sql', 'r') as f:

@@ -2,11 +2,14 @@
 # Search API setup (SerpAPI)
 # -------------------------------
 from urllib import response
-
+import os
 import requests
+from dotenv import load_dotenv
+load_dotenv()
 
 class SearchAPI:
-    SERPAPI_KEY = "c954f755cdd0317ea32b4c1bcffd9abe4cc4fb01ecbadf3379cbf9700050a98e"
+    # SERPAPI_KEY = "c954f755cdd0317ea32b4c1bcffd9abe4cc4fb01ecbadf3379cbf9700050a98e"
+    SERPAPI_KEY = os.getenv("SERPAPI_KEY")
     MAX_RESULTS_PER_PAGE = 10
     MAX_START_POSITION = 90  # SerpAPI max is 100 results (0-90 in steps of 10)
 
