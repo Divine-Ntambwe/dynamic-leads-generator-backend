@@ -17,7 +17,7 @@ async def root():
 async def scrape():
     orchestrator = ScraperOrchestrator(target_schools=TARGET_SCHOOLS)
     await orchestrator.run()
-    return {"message": "Scraping completed"}
+    return {"message": "Scraping completed!"}
 
 
 # async def main():
