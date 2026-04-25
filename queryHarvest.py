@@ -1,37 +1,53 @@
 from searchApi import SearchAPI
-##checks for unfinished jobs 
+from database import Database
+#gets 
 
 class queryHarvest:
-    def __init__(self, db):
-        self.db = db
+    def __init__(self):
+        self.db = Database()
         self.search_api = SearchAPI()
 
-    def harvest_query(self, query, max_urls_per_query=100):
-        collected = []
-        last_start, completed = self.db.get_query_progress(query)
-        
-        if completed:
-            print(f"Query already completed: {query}")
-            return collected
-
-        for start in range(last_start, SearchAPI.MAX_START_POSITION + 1, SearchAPI.MAX_RESULTS_PER_PAGE):
-            links = self.search_api.search_google(query, start)
-
+    def harvest_query(self, query, max_urls_per_query=100,userId=2):
+        #creates a job queue and the queue id becomes the job id
+        job_id = self.db.create_query_progress(query,0,userId)
+        result = ""
+        new_links = []
+        #runs from 1 to 100 in steps of 10
+        for start in range(1,2):
+            #start indicates from the returned results where it should start e.g) 21 for results from page 3
+ 
+            #getting search query results:
+            # links = self.search_api.search_google(query, start)
+            links = ["https://www.santarama-miniland.co.za/","https://www.jbfa.co.za/"]
+            
             if not links:
-                self.db.mark_query_completed(query)
+                print(f"no links found for search query:{query} job id:{job_id}")
+                result = f"no links found for search query:{query} job id:{job_id}"
+                self.db.mark_query_completed(job_id)  
                 break
+            
             
             # Filter out already visited URLs
-            new_links = []
+            
             for link in links:
                 from utils import hash_url
-                if not self.db.url_exists(hash_url(link)):
+                url_hash = hash_url(link)
+                exists = self.db.url_exists(job_id,query,link)
+                if not exists:
                     new_links.append(link)
-            
-            collected.extend(new_links)
-            self.db.update_query_progress(query, start + SearchAPI.MAX_RESULTS_PER_PAGE)
-            
-            if len(collected) >= max_urls_per_query:
+                    self.db.add_url(link,job_id,query)
+                else:
+                    print(f"{link} has already been scrapped")
+            if len(new_links) >= max_urls_per_query:
                 break
 
-        return collected
+        if len(new_links) == 0:
+            result = f"no new links found for search query:{query} job id:{job_id}"
+            self.db.mark_query_completed(job_id)    
+
+        else:
+            result = f"found {len(new_links)} new urls for search query:{query} job id:{job_id}"
+        return {"result":result, "urls":new_links,"job_id":job_id}        
+
+
+print(queryHarvest().harvest_query("schools in gauteng"))

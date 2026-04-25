@@ -1,49 +1,135 @@
 import asyncio
-from playwright.async_api import async_playwright
-from extractor import extract_school_data
 from utils import hash_url
+import asyncio
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig, LLMConfig
+from crawl4ai.extraction_strategy import LLMExtractionStrategy
+# import tldextract
+from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+import os
+from dotenv import load_dotenv
+import json
+from pydantic import BaseModel
+from typing import Optional
+import re
+from urllib.parse import urlparse
+from pathlib import Path
 
-class SchoolScraper:
-    def __init__(self, db):
-        self.db = db
 
-    async def scrape_urls(self, urls, target_schools):
+load_dotenv()
+
+class Leads(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[list[str]] = None
+    website: Optional[str] = None
+    organization_name: Optional[str] = None
+    job_position: Optional[str] = None
+    notes: Optional[str] = None
+
+extraction_strategy = LLMExtractionStrategy(
+    llm_config=LLMConfig(
+        provider="ollama/qwen3.5:397b-cloud",
+        api_token= os.getenv("OLLAMA_API_KEY"),
+        base_url="http://localhost:11434",
+    ),
+    schema=Leads.model_json_schema(),  # ← pydantic v2 fix
+    extraction_type="schema",
+    instruction="""
+        Extract only contact details on the website. Strip ads, nav etc.
+    """
+)
+
+EXCLUDE_TAGS = [
+    "nav", "header", "aside", "script", "style",
+    "noscript", "iframe", "svg", "button"
+]
+
+EXCLUDE_SELECTORS = ", ".join([
+    ".ads", ".advertisement", ".social-share", ".share-buttons",
+    ".follow-us", ".modal", ".popup", ".newsletter-signup",
+    ".cookie-banner", ".cookie-consent", ".menu", ".breadcrumb",
+    "#sidebar", "#comments", "#ad-slot"
+])
+
+async def crawl(url):
+    crawl_config = CrawlerRunConfig(
+    only_text=True,
+    excluded_tags=EXCLUDE_TAGS,
+    excluded_selector=EXCLUDE_SELECTORS,
+    markdown_generator=DefaultMarkdownGenerator(),  # ← pass an actual instance
+    extraction_strategy=extraction_strategy,
+    cache_mode="enabled",
+    )
+    browser_config = BrowserConfig(
+        headless=True 
+    )
+
+    async with AsyncWebCrawler(config=browser_config) as crawler:
+
+        # Fetch sitemap
+        sitemap_url = url.rstrip("/") + "/sitemap.xml"
+        sitemap_result = await crawler.arun(url=sitemap_url)
+        urls = re.findall(r"<loc>(.*?)</loc>", sitemap_result.html or "")
+        urls = urls[:10]  # limit: 10
+
+        if not urls:
+            urls = [url]  # fallback to base URL
+
+        print(f"🔍 Crawling {len(urls)} URLs from {url}")
+
         results = []
+        for page_url in urls:
+            result = await crawler.arun(url=page_url, config=crawl_config)
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context()
-            
-            count = 0
-            for url in urls:
-                if count == target_schools:
-                    print("Reached target school count during scraping")
-                    break
-                url_hash = hash_url(url)
-
-                # Skip already visited
-                if self.db.url_exists(url_hash):
-                    print(f"Skipping visited: {url}")
-                    continue
-
+            if result.success and result.extracted_content:
                 try:
-                    page = await context.new_page()
-                    await page.goto(url, timeout=30000)
+                    data = json.loads(result.extracted_content)
+                    print("the data",data)
 
-                    html = await page.content()
-                    school_data = extract_school_data(html, url)
+                    results.append(data)
+                    print(f"✅ Extracted: {result.extracted_content}")
 
-                    if school_data:
-                        results.append(school_data)
-                        count += 1
-
-                    self.db.mark_url_visited(url, url_hash)
-
-                    await page.close()
-
-                except Exception as e:
-                    print(f"Error scraping {url}: {e}")
-
-            await browser.close()
+                except json.JSONDecodeError:
+                    print(f"⚠️  Could not parse extraction for {page_url}")
+            else:
+                print(f"❌ Failed: {page_url}")
 
         return results
+
+class Scraper:
+    def __init__(self, db):
+        self.db = db
+        
+
+    async def scrape_urls(self, urls, target_schools,job_id):
+        results = []
+        count = 0
+            
+        for url in urls:
+            if count == target_schools:
+                print("Reached target school count during scraping")
+                break
+
+            try:
+                leads_data = await crawl(url)
+
+                if leads_data:
+                    results.append(leads_data)
+                    self.db.mark_url_visited(url,job_id)
+                    count += 1
+                
+
+
+            except Exception as e:
+                print(f"Error scraping {url}: {e}")
+
+      
+
+        return results
+
+
+# async def main():
+#     stuff = await crawl("https://www.santarama-miniland.co.za/") 
+#     print(stuff)
+
+
+# asyncio.run(main())

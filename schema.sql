@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS leads (
 
 CREATE INDEX IF NOT EXISTS idx_url_hash ON visited_urls(url_hash);
 CREATE INDEX IF NOT EXISTS idx_fingerprint ON leads(fingerprint);
+CREATE INDEX idx_query_progress_urls ON query_progress USING GIN (fetched_urls);
 
 CREATE TABLE IF NOT EXISTS query_progress (
     id BIGSERIAL PRIMARY KEY,
