@@ -31,7 +31,8 @@ async def startup():
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
+            name TEXT,
+            email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL
         )
     """)
@@ -56,7 +57,8 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
 # --- Models ---
 class UserCredentials(BaseModel):
-    username: str
+    name: str | None = None  # signup only
+    email: str
     password: str
 
 # --- Routes ---
@@ -66,19 +68,22 @@ async def root():
 
 @app.post("/signup")
 async def signup(credentials: UserCredentials, conn=Depends(get_db)):
-    existing = await conn.fetchrow("SELECT id FROM users WHERE username = $1", credentials.username)
+    existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", credentials.email)
     if existing:
         raise HTTPException(status_code=400, detail="Username already exists")
     hashed = hash_password(credentials.password)
-    await conn.execute("INSERT INTO users (username, password) VALUES ($1, $2)", credentials.username, hashed)
-    return {"message": "User created successfully", "token": create_token(credentials.username)}
+    await conn.execute(
+        "INSERT INTO users (name, email, password) VALUES ($1, $2, $3)",
+        credentials.name, credentials.email, hashed
+    )
+    return {"message": "User created successfully", "token": create_token(credentials.email)}
 
 @app.post("/login")
 async def login(credentials: UserCredentials, conn=Depends(get_db)):
-    user = await conn.fetchrow("SELECT password FROM users WHERE username = $1", credentials.username)
+    user = await conn.fetchrow("SELECT password FROM users WHERE email = $1", credentials.email)
     if not user or not verify_password(credentials.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    return {"message": "Login successful", "token": create_token(credentials.username)}
+    return {"message": "Login successful", "token": create_token(credentials.email)}
 
 @app.get("/scrape")
 async def scrape(username: str = Depends(verify_token)):
