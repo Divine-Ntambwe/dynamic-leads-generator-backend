@@ -7,7 +7,7 @@ from queryHarvest import queryHarvest
 
 
 class ScraperOrchestrator:
-    def __init__(self, target_schools):
+    def __init__(self, target_schools, pool):
         self.target_schools = target_schools
         self.db = Database()
         self.scraper = Scraper(self.db)
