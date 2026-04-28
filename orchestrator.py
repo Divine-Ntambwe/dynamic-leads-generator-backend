@@ -4,6 +4,8 @@ from scrapper import Scraper
 from queryBuilder import queryBuilder
 from queryHarvest import queryHarvest
 
+
+
 class ScraperOrchestrator:
     def __init__(self, target_schools):
         self.target_schools = target_schools
@@ -35,7 +37,7 @@ class ScraperOrchestrator:
             
             # Harvest URLs from this query
             results_urls = self.query_harvester.harvest_query(query, max_urls_per_query=100)
-            print(results_urls["results"])
+            print(results_urls["result"])
             urls = results_urls["urls"]
             job_id= results_urls['job_id']
             
@@ -46,8 +48,9 @@ class ScraperOrchestrator:
             print(f"Found {len(urls)} new URLs to scrape")
             
             # Scrape the URLs
-            leads = await self.scraper.scrape_urls(urls, self.target_schools,job_id)
-
+            details = {"test1","business"}
+            leads = await self.scraper.scrape_urls(urls, self.target_schools,job_id,details)
+            print("all the leads", leads)
             final_count = 0
             if leads:
                 inserted = self.db.bulk_insert_leads(leads)

@@ -18,7 +18,8 @@ class queryHarvest:
  
             #getting search query results:
             # links = self.search_api.search_google(query, start)
-            links = ["https://www.santarama-miniland.co.za/","https://www.jbfa.co.za/"]
+            # links = ["https://www.santarama-miniland.co.za/","https://www.jbfa.co.za/"]
+            links = ["https://www.example.com"]
             
             if not links:
                 print(f"no links found for search query:{query} job id:{job_id}")

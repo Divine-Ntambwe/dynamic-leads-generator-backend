@@ -50,7 +50,7 @@ EXCLUDE_SELECTORS = ", ".join([
     "#sidebar", "#comments", "#ad-slot"
 ])
 
-async def crawl(url):
+async def crawl(url,job_details):
     crawl_config = CrawlerRunConfig(
     only_text=True,
     excluded_tags=EXCLUDE_TAGS,
@@ -77,30 +77,31 @@ async def crawl(url):
         print(f"🔍 Crawling {len(urls)} URLs from {url}")
 
         results = []
+        test = []
         for page_url in urls:
             result = await crawler.arun(url=page_url, config=crawl_config)
 
             if result.success and result.extracted_content:
                 try:
                     data = json.loads(result.extracted_content)
-                    print("the data",data)
+                    
+                    lead = {"job_id":job_details.job_id,"job_name":job_details.job_name,"lead_type":job_details.lead_type,**data[0]}
 
-                    results.append(data)
+                    results.append(lead)
                     print(f"✅ Extracted: {result.extracted_content}")
 
                 except json.JSONDecodeError:
                     print(f"⚠️  Could not parse extraction for {page_url}")
             else:
                 print(f"❌ Failed: {page_url}")
-
-        return results
+        return results[0]
 
 class Scraper:
     def __init__(self, db):
         self.db = db
         
 
-    async def scrape_urls(self, urls, target_schools,job_id):
+    async def scrape_urls(self, urls, target_schools,job_id,job_details):
         results = []
         count = 0
             
@@ -110,10 +111,13 @@ class Scraper:
                 break
 
             try:
-                leads_data = await crawl(url)
+                job_details = {"job_id":job_id,**job_details}
+                print(job_details)
+                leads_data = await crawl(url,job_details)
+
 
                 if leads_data:
-                    results.append(leads_data)
+                    results.append(*leads_data)
                     self.db.mark_url_visited(url,job_id)
                     count += 1
                 
@@ -128,8 +132,9 @@ class Scraper:
 
 
 # async def main():
-#     stuff = await crawl("https://www.santarama-miniland.co.za/") 
+#     # stuff = await crawl("https://www.santarama-miniland.co.za/") 
+#     stuff = await crawl("https://www.example.com")
 #     print(stuff)
 
-
 # asyncio.run(main())
+

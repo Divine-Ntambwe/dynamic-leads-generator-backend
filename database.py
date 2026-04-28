@@ -53,6 +53,7 @@ class Database:
         return cur.fetchone() is not None
 
     def bulk_insert_leads(self, leads):
+        print("In DB",leads)
         cur = self.conn.cursor()
         
         if leads:
@@ -60,7 +61,6 @@ class Database:
                 """
                 INSERT INTO leads (job_id,job_name, lead_type,email, phone, website,organization_name,job_position,notes)
                 VALUES (%s, %s, "person",%s, %s, %s,%s,%s,%s)
-                ON CONFLICT (fingerprint) DO NOTHING
             """,
                 leads,
             )
