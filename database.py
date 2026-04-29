@@ -3,7 +3,7 @@ import ssl
 import os
 from dotenv import load_dotenv
 import json
-import psycopg
+import psycopg2
 
 load_dotenv()
 
@@ -12,7 +12,7 @@ ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
 class Database:
     DATABASE_URL = os.getenv("DATABASE_URL")
-    conn = psycopg.connect(DATABASE_URL)
+    conn = psycopg2.connect(DATABASE_URL)
 
     def __init__(self, conn = conn):
         self.conn = conn

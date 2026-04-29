@@ -153,5 +153,6 @@ async def main():
     stuff = await Scraper(Database()).scrape_urls(['https://bakertillyjhb.co.za/'],1,1,{"job_name":"test1","lead_type":"person"})
     print(stuff)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
 
