@@ -8,4 +8,6 @@ crawl4ai
 pydantic
 psycopg2
 psycopg[binary]
-
+asyncpg
+bcrypt
+python-jose
