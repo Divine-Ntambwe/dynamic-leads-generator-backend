@@ -6,3 +6,7 @@ lxml==4.9.3
 python-dotenv
 fastapi
 uvicorn
+asyncpg
+bcrypt
+python-jose
+pydantic

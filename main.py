@@ -2,7 +2,7 @@ import os
 import ssl
 import asyncpg
 import bcrypt
-import jwt
+from jose import jwt
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -79,7 +79,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
         return payload["sub"]
-    except jwt.PyJWTError:
+    except jwt.JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 # --- Models ---
@@ -117,6 +117,45 @@ async def scrape(username: str = Depends(verify_token)):
     orchestrator = ScraperOrchestrator(target_schools=TARGET_SCHOOLS, pool=pool)
     await orchestrator.run()
     return {"message": "Scraping completed!", "triggered_by": username}
+
+@app.get("/jobs")
+async def get_jobs(username: str = Depends(verify_token), conn=Depends(get_db)):
+    rows = await conn.fetch("""
+        SELECT
+            job_id,
+            job_name,
+            COUNT(*) AS leads,
+            MIN(created_at) AS triggered_at
+        FROM leads
+        GROUP BY job_id, job_name
+        ORDER BY MIN(created_at) DESC
+    """)
+    return [
+        {
+            "id": row["job_id"],
+            "name": row["job_name"],
+            "leads": row["leads"],
+            "triggered_at": row["triggered_at"].isoformat() if row["triggered_at"] else None,
+        }
+        for row in rows
+    ]
+
+@app.get("/jobs/{job_id}/leads")
+async def get_leads(job_id: int, username: str = Depends(verify_token), conn=Depends(get_db)):
+    rows = await conn.fetch(
+        "SELECT * FROM leads WHERE job_id = $1 ORDER BY created_at ASC", job_id
+    )
+    return [dict(row) for row in rows]
+
+@app.patch("/leads/{lead_id}/mark")
+async def mark_lead(lead_id: int, username: str = Depends(verify_token), conn=Depends(get_db)):
+    row = await conn.fetchrow(
+        "UPDATE leads SET marked = NOT marked WHERE id = $1 RETURNING id, marked",
+        lead_id
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return {"id": row["id"], "marked": row["marked"]}
 
 # async def main():
 #     orchestrator = ScraperOrchestrator(target_schools=TARGET_SCHOOLS)
