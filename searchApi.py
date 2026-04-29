@@ -26,7 +26,7 @@ class SearchAPI:
             "q": query, #search term
             "api_key": self.SERPAPI_KEY,
             "engine": "google",
-            "num": self.MAX_RESULTS_PER_PAGE,
+            "num": 2,
             "start": start
         }
         
@@ -39,7 +39,7 @@ class SearchAPI:
             for result in results.get("organic_results", []):
                 link = result.get("link")
                 if link and not any(x in link.lower() for x in [
-                    "facebook.com", "linkedin.com", "instagram.com",
+                    "facebook.com", "instagram.com",
                     "google.com", "youtube.com", "twitter.com"
                 ]):
                     urls.append(link)

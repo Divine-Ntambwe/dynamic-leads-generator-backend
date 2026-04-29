@@ -13,12 +13,17 @@ from typing import Optional
 import re
 from urllib.parse import urlparse
 from pathlib import Path
+import sys
+from database import Database
+# Fix for Windows asyncio subprocess issues
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
 load_dotenv()
 
 class Leads(BaseModel):
-    email: Optional[str] = None
+    email: Optional[list[str]] = None
     phone: Optional[list[str]] = None
     website: Optional[str] = None
     organization_name: Optional[str] = None
@@ -58,11 +63,20 @@ async def crawl(url,job_details):
     markdown_generator=DefaultMarkdownGenerator(),  # ← pass an actual instance
     extraction_strategy=extraction_strategy,
     cache_mode="enabled",
-    )
-    browser_config = BrowserConfig(
-        headless=True 
+    wait_for="body", # Wait for the page to load
+    delay_before_return_html=2.0, # Give JS time to execute
+    # This helps extract actual text instead of just HTML tags
+    word_count_threshold=10 
     )
 
+    browser_config = BrowserConfig(
+        headless=True,
+        java_script_enabled=True,
+        # Stealth mode is crucial for avoiding auth walls
+        enable_stealth=True,
+        avoid_ads=True 
+    )
+   
     async with AsyncWebCrawler(config=browser_config) as crawler:
 
         # Fetch sitemap
@@ -77,7 +91,7 @@ async def crawl(url,job_details):
         print(f"🔍 Crawling {len(urls)} URLs from {url}")
 
         results = []
-        test = []
+       
         for page_url in urls:
             result = await crawler.arun(url=page_url, config=crawl_config)
 
@@ -85,8 +99,8 @@ async def crawl(url,job_details):
                 try:
                     data = json.loads(result.extracted_content)
                     
-                    lead = {"job_id":job_details.job_id,"job_name":job_details.job_name,"lead_type":job_details.lead_type,**data[0]}
-
+                    lead = {"job_id":job_details["job_id"],"job_name":job_details["job_name"],"lead_type":job_details["lead_type"],**data[0]}
+                    print(lead)
                     results.append(lead)
                     print(f"✅ Extracted: {result.extracted_content}")
 
@@ -102,8 +116,10 @@ class Scraper:
         
 
     async def scrape_urls(self, urls, target_schools,job_id,job_details):
+        print(urls)
         results = []
         count = 0
+        
             
         for url in urls:
             if count == target_schools:
@@ -112,12 +128,12 @@ class Scraper:
 
             try:
                 job_details = {"job_id":job_id,**job_details}
-                print(job_details)
+
                 leads_data = await crawl(url,job_details)
 
 
                 if leads_data:
-                    results.append(*leads_data)
+                    results.append(leads_data)
                     self.db.mark_url_visited(url,job_id)
                     count += 1
                 
@@ -131,10 +147,11 @@ class Scraper:
         return results
 
 
-# async def main():
-#     # stuff = await crawl("https://www.santarama-miniland.co.za/") 
-#     stuff = await crawl("https://www.example.com")
-#     print(stuff)
+async def main():
+    # stuff = await crawl("https://www.santarama-miniland.co.za/",{"job_id":1,"job_name":"test1","lead_type":"person"}) 
+    # stuff = await crawl("https://www.dninvest.co.za",{"job_id":1,"job_name":"test1","lead_type":"person"})
+    stuff = await Scraper(Database()).scrape_urls(['https://bakertillyjhb.co.za/'],1,1,{"job_name":"test1","lead_type":"person"})
+    print(stuff)
 
-# asyncio.run(main())
+asyncio.run(main())
 

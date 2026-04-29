@@ -18,15 +18,7 @@ load_dotenv()
 
 app = FastAPI()
 
-class ScrapeRequest(BaseModel):
-    job_name: str = None
-    lead_type: str = None
-    location: str = None
-    industry: Optional[str] = None
-    job_position: Optional[str] = None
-    description: Optional[str] = None
-    add_terms: Optional[str] = None
-    target_nums: Optional[str] = None
+
 
 
 app.add_middleware(
@@ -102,6 +94,17 @@ class UserCredentials(BaseModel):
     email: str
     password: str
 
+class ScrapeRequest(BaseModel):
+    job_name: str = None
+    location: str = None
+    industry: Optional[str] = None
+    job_position: Optional[str] = None
+    job_title: Optional[str] = None
+    employee_range: Optional[int] = 0
+    add_terms: Optional[str] = None
+    target_num: Optional[int] = None
+    lead_type: str = None
+
 # --- Routes ---
 @app.get("/")
 async def root():
@@ -110,9 +113,15 @@ async def root():
 @app.post("/scrape")
 async def scrape(formData: ScrapeRequest):
     print(formData)
-    # orchestrator = ScraperOrchestrator(formData)
-    # await orchestrator.run()
+    orchestrator = ScraperOrchestrator(formData)
+    await orchestrator.run()
     return {"message": "Scraping completed!"}
+
+@app.get("/unfinished-jobs")
+async def look_unfinished_jobs():
+    pass    
+
+
 @app.post("/signup")
 async def signup(credentials: UserCredentials, conn=Depends(get_db)):
     existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", credentials.email)
@@ -132,11 +141,6 @@ async def login(credentials: UserCredentials, conn=Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return {"message": "Login successful", "token": create_token(credentials.email)}
 
-@app.get("/scrape")
-async def scrape(username: str = Depends(verify_token)):
-    orchestrator = ScraperOrchestrator(target_schools=TARGET_SCHOOLS, pool=pool)
-    await orchestrator.run()
-    return {"message": "Scraping completed!", "triggered_by": username}
 
 # async def main():
 #     orchestrator = ScraperOrchestrator(target_schools=TARGET_SCHOOLS)

@@ -3,17 +3,18 @@ import ssl
 import os
 from dotenv import load_dotenv
 import json
+import psycopg
 
 load_dotenv()
 
 ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
-
 class Database:
     DATABASE_URL = os.getenv("DATABASE_URL")
+    conn = psycopg.connect(DATABASE_URL)
 
-    def __init__(self, conn):
+    def __init__(self, conn = conn):
         self.conn = conn
 
     def add_url(self, url,job_id,query):
@@ -61,8 +62,8 @@ class Database:
         if leads:
             cur.executemany(
                 """
-                INSERT INTO leads (job_id,job_name, lead_type,email, phone, website,organization_name,job_position,notes)
-                VALUES (%s, %s, "person",%s, %s, %s,%s,%s,%s)
+                INSERT INTO leads (job_id, job_name, lead_type, email, phone, url, organization_name, job_position, notes)
+    VALUES (%(job_id)s, %(job_name)s, %(lead_type)s, %(email)s, %(phone)s, %(website)s, %(organization_name)s, %(job_position)s, %(notes)s)
             """,
                 leads,
             )
@@ -70,9 +71,9 @@ class Database:
 
         return len(leads)
 
-    def get_school_count(self):
+    def get_leads_count(self,job_id):
         cur = self.conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM leads")
+        cur.execute("SELECT COUNT(*) FROM leads WHERE job_id = %s",(job_id,))
         return cur.fetchone()[0]
 
     # get the last start position and completed status of a query
@@ -120,6 +121,15 @@ class Database:
         """,
             (job_id,),
         )
+
+    def look_for_unfinished(self):
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+        SELECT * FROM query_progress 
+"""
+        )
+        pass
 
     
     # --- Schools ---

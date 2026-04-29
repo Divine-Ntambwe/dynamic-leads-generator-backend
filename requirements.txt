@@ -7,4 +7,5 @@ uvicorn
 crawl4ai
 pydantic
 psycopg2
+psycopg[binary]
 

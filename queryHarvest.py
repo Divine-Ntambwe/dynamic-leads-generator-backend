@@ -1,6 +1,6 @@
 from searchApi import SearchAPI
 from database import Database
-#gets 
+#gets links a checks if they have already been scrapped
 
 class queryHarvest:
     def __init__(self):
@@ -17,9 +17,9 @@ class queryHarvest:
             #start indicates from the returned results where it should start e.g) 21 for results from page 3
  
             #getting search query results:
-            # links = self.search_api.search_google(query, start)
+            links = self.search_api.search_google(query, start)
             # links = ["https://www.santarama-miniland.co.za/","https://www.jbfa.co.za/"]
-            links = ["https://www.example.com"]
+            # links = ["https://www.example.com",]
             
             if not links:
                 print(f"no links found for search query:{query} job id:{job_id}")
@@ -49,6 +49,3 @@ class queryHarvest:
         else:
             result = f"found {len(new_links)} new urls for search query:{query} job id:{job_id}"
         return {"result":result, "urls":new_links,"job_id":job_id}        
-
-
-print(queryHarvest().harvest_query("schools in gauteng"))
