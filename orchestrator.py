@@ -1,62 +1,82 @@
 import asyncio
 from database import Database
-from scrapper import SchoolScraper
+from scrapper import Scraper
 from queryBuilder import queryBuilder
 from queryHarvest import queryHarvest
 
+
+
+
+
+
+
 class ScraperOrchestrator:
-    def __init__(self, target_schools, pool):
-        self.target_schools = target_schools
-        self.pool = pool
+    def __init__(self, scrape_request):
+        self.scrape_request = scrape_request.model_dump(exclude_none=True)
+        self.db = Database()
+        self.scraper = Scraper(self.db)
+        self.query_builder = queryBuilder()
+        self.query_harvester = queryHarvest()
+        self.target_num = scrape_request.target_num
 
     async def run(self):
-        async with self.pool.acquire() as conn:
-            db = Database(conn)
-            scraper = SchoolScraper(db)
-            query_builder = queryBuilder()
-            query_harvester = queryHarvest(db)
+        print(self.scrape_request)
+        #generate multiple queries(array form) to search by:
+        queries = self.query_builder.generate_queries(self.scrape_request)
+        # queries=["schools in gauteng"]
+       
+        print(f"Generated {len(queries)} search queries")
+        # return
+        #loop through the queries, use them in SerpAPI and scrapes the urls returned by each query
+        for idx, query in enumerate(queries, 1):
 
-            queries = query_builder.generate_queries()
-            print(f"Generated {len(queries)} search queries")
+            # Harvest URLs from this query
+            results_urls = self.query_harvester.harvest_query(query, max_urls_per_query=100)
+            print(results_urls["result"])
+            urls = results_urls["urls"]
+            job_id= results_urls['job_id']
+            
+            current_count = self.db.get_leads_count(job_id)
+            print("current count", current_count)
 
-            current_count = await db.get_school_count()
-            print(f"Current schools in database: {current_count}")
 
-            if current_count >= self.target_schools:
-                print(f"Target already met: {current_count}/{self.target_schools}")
-                return
-
+            #check if the target is already met and stops the loop if true
+            if current_count >= self.target_num:
+                print(f"\n✓ Target reached: {current_count}/{self.target_num} leads")
+                break
+            
+            #print remaining leads to find
+            remaining = self.target_num - current_count
+            print(f"\n[{idx}/{len(queries)}] Processing query: {query}")
+            print(f"Progress: {current_count}/{self.target_num} ({remaining} remaining)")
+            
+            if not urls:
+                print(f"No new URLs found for query")
+                continue
+            
+            print(f"Found {len(urls)} new URLs to scrape")
+            print("found",urls)
+            
+            # Scrape the URLs
+            details = {"job_name":self.scrape_request.job_name,"lead_type":self.scrape_request.lead_type}
+            leads = await self.scraper.scrape_urls([urls[1]], self.target_num,job_id,details)
+            print("all the leads", leads)
             final_count = 0
+            if leads:
+                inserted = self.db.bulk_insert_leads(leads)
+                current_count += len(leads) 
+                final_count += len(leads) 
+                print(f"Inserted {inserted} new leads for query:{query}")
+            else:
+                print(f"No leads extracted from URLs for query:{query}")
+        
+        print(f"\n{'='*60}")
+        print(f"Scraping completed!")
+        print(f"Final count: {final_count}/{self.target_num} leads")
+        print(f"{'='*60}")
 
-            for idx, query in enumerate(queries, 1):
-                current_count = await db.get_school_count()
-                if current_count >= self.target_schools:
-                    print(f"\n✓ Target reached: {current_count}/{self.target_schools} schools")
-                    break
 
-                remaining = self.target_schools - current_count
-                print(f"\n[{idx}/{len(queries)}] Processing query: {query}")
-                print(f"Progress: {current_count}/{self.target_schools} ({remaining} remaining)")
+# async def test():
+#     await ScraperOrchestrator(2).run()
 
-                urls = query_harvester.harvest_query(query, max_urls_per_query=100)
-
-                if not urls:
-                    print(f"No new URLs found for query")
-                    continue
-
-                print(f"Found {len(urls)} new URLs to scrape")
-
-                schools = await scraper.scrape_urls(urls, self.target_schools)
-
-                if schools:
-                    inserted = await db.bulk_insert_schools(schools)
-                    current_count += inserted
-                    final_count += inserted
-                    print(f"Inserted {inserted} new schools")
-                else:
-                    print("No schools extracted from URLs")
-
-            print(f"\n{'='*60}")
-            print(f"Scraping completed!")
-            print(f"Final count: {final_count}/{self.target_schools} schools")
-            print(f"{'='*60}")
+# asyncio.run(test())
