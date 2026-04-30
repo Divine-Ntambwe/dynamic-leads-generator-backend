@@ -86,15 +86,21 @@ class Database:
         print("result", result)
         return result if result else (0, False)
 
-    def create_query_progress(self, query, start_position, userId, completed=False):
+    def create_job(self, query, start_position, job_details, completed=False):
         cur = self.conn.cursor()
         cur.execute(
             """
-            INSERT INTO query_progress (query, last_start_position, completed, updated_at,user_id)
-            VALUES (%s, %s, %s, CURRENT_TIMESTAMP,%s)
+            INSERT INTO jobs (user_email, name, lead_type, status, triggered_at, updated_at, location, job_title)
+            VALUES (%s, %s, %s, False,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s,%s)
             RETURNING id
         """,
-            (query, start_position, completed, userId),
+            (
+                job_details.get('email'),
+                job_details.get('job_name'),
+                job_details.get('lead_type'),
+                job_details.get('location'),
+                job_details.get('job_title')
+            ),
         )
         result = cur.fetchone()
         return result[0] if result else 0

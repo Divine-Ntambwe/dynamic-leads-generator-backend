@@ -27,7 +27,8 @@ class ScraperOrchestrator:
         for idx, query in enumerate(queries, 1):
 
             # Harvest URLs from this query
-            results_urls = self.query_harvester.harvest_query(query, max_urls_per_query=100)
+            email = self.scrape_request.get('email')
+            results_urls = self.query_harvester.harvest_query(query, self.scrape_request,max_urls_per_query=100) #returns urls and job id
             print(results_urls["result"])
             urls = results_urls["urls"]
             job_id= results_urls['job_id']

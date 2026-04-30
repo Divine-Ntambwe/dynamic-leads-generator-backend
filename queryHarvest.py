@@ -7,9 +7,9 @@ class queryHarvest:
         self.db = Database()
         self.search_api = SearchAPI()
 
-    def harvest_query(self, query, max_urls_per_query=100,userId=2):
+    def harvest_query(self, query,job_details, max_urls_per_query=100):
         #creates a job queue and the queue id becomes the job id
-        job_id = self.db.create_query_progress(query,0,userId)
+        job_id = self.db.create_job(query,0,job_details)
         result = ""
         new_links = []
         #runs from 1 to 100 in steps of 10
@@ -18,8 +18,7 @@ class queryHarvest:
  
             #getting search query results:
             links = self.search_api.search_google(query, start)
-            # links = ["https://www.santarama-miniland.co.za/","https://www.jbfa.co.za/"]
-            # links = ["https://www.example.com",]
+            
             
             if not links:
                 print(f"no links found for search query:{query} job id:{job_id}")

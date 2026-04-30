@@ -111,6 +111,7 @@ class ScrapeRequest(BaseModel):
     add_terms: Optional[str] = None
     target_num: Optional[int] = 0
     lead_type: str = None
+    email: Optional[str] = None
 
 # --- Routes ---
 @app.get("/")

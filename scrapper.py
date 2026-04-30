@@ -37,7 +37,6 @@ contact_scorer = KeywordRelevanceScorer(
 keywords=[
     "contact", "about", "support", "location", 
     "reach-out", "email", "office", "headquarters",
-    "team", "staff", "management"
 ]
 class Leads(BaseModel):
     email: Optional[list[str]] = None
@@ -144,32 +143,36 @@ class Scraper:
         
 
     async def scrape_urls(self, urls, target_schools,job_id,job_details):
-        results = []
+        leads = []
         count = 0
         print("stop",target_schools)
+        job_details = {"job_id":job_id,**job_details}
+        print("THE DETAILS",job_details)
        
         
         
-        for i in range(0,len(urls),2):   
+        for url in urls:
 
             if count == target_schools:
                 print("Reached target school count during scraping")
                 break
             count+=2 
-            
-            link1 = urls[i]
-            if i+1 >= len(urls):
-                link2 = ""
-            else:
-                link2 = urls[i+1]
+
+            # link1 = urls[i]
+            # if i+1 >= len(urls): 
+            #     link2 = ""
+            # else:
+            #     link2 = urls[i+1]
                 
-            both_links = [link1,link2]
-            if both_links.count(""):
-                both_links.pop(both_links.index(""))
-            print(both_links)
+            # both_links = [link1,link2]
+            # both_links =[link1]
+            # if both_links.count(""):
+            #     both_links.pop(both_links.index(""))
+            # print(both_links)
             # continue
-            deepcrawl = None
-            if link1.find("linkedin") == -1 or link2.find("linkedin"):
+            # deepcrawl = None
+            # print(link1.find("linkedin") == -1, link2.find("linkedin") == -1)
+            if not url.find("linkedin") == -1 :
                 deepcrawl = None
             else:
                 deepcrawl = {
@@ -187,13 +190,14 @@ class Scraper:
                     "max_pages":15
                 },
                 }
-
+            print("deep crawl strategy is",bool(deepcrawl))
+         
             try:
                 job_details = {"job_id":job_id,**job_details}
                 response = requests.post(
-                    'https://crawl4ai-production-40e2.up.railway.app/crawl', 
+                    'http://localhost:11235/crawl', 
                     json={
-                    "urls": both_links,
+                    "urls": urls,
     "browser_config":{
         "type":"BrowserConfig",
         "params":{
@@ -212,8 +216,11 @@ class Scraper:
             "excluded_selector": EXCLUDE_SELECTORS,
             "cache_mode": "enabled",
             "wait_for":"body",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36",
+            "page_timeout":10000, # Wait for the page to load
             "delay_before_return_html":2.0,
             "word_count_threshold":10,
+            
             # "scrapping_strategy":LXMLWebScrapingStrategy()
             # "stream":True,
             
@@ -284,7 +291,7 @@ class Scraper:
                         }
                     },
                     "extraction_type": "schema",
-                    "instruction": "Extract any contact details in the url about the person/company like name,linkedin,email,phone number.",
+                    "instruction": "Extract any contact details in the url about the person/company like name,linkedin,email,phone number. ",
                     "apply_chunking": False,
                     "input_format": "markdown"
                 }
@@ -293,13 +300,51 @@ class Scraper:
     }
                 })
                 data = response.json()
-                print(len(data.get("results")))
-                
-                for result in data.get('results'):
-                    print(result.get("extracted_content"))
+                # print(len(data.get("results")))
+                current_leads = None
+                url_lead_added = False
+                if bool(deepcrawl) :
+                    for result in data.get('results'):
+                        print(result.get("extracted_content"), print(type(result.get("extracted_content"))))
+                        if not result.get("extracted_content"):
+                            continue
+                        content = json.loads(result.get("extracted_content"))[0]
+                        print("content is",content, "type is", type(content))
+                        
+                        if content.get('error','') == False:
+                            print("is not false")
+                            has_phone = len(content.get('phone', [])) > 0
+                            has_email = len(content.get('email', [])) > 0
+                            has_org = content.get("organization_name")
+                            
+                            # If found both phone and email
+                            if has_phone and has_email and has_org:
+                                # Remove previous dict if it exists
+                                if current_leads is not None and url_lead_added:
+                                    leads.pop()
+                                # Add new complete dict and stop processing this URL
+                                current_leads = {**job_details, **content}
+                                leads.append(current_leads)
+                                url_lead_added = True
+                                break
+                            
+                            # If found only phone or email (but not both)
+                            elif (has_phone or has_email) and has_org:
+                                # Only add if we haven't added one for this URL yet
+                                if not url_lead_added:
+                                    current_leads = {**job_details, **content}
+                                    leads.append(current_leads)
+                                    url_lead_added = True
 
-                # leads_data = await crawl(url,job_details)
-                # print("FINAL DATA",leads_data)
+                    print("leads are",leads)
+
+                        # print(result.get("extracted_content"))
+
+                else:
+                    for result in data.get('results'):
+                        print(result.get("extracted_content"))
+
+                print("FINAL DATA",leads)
 
 
                 # if leads_data:
@@ -311,12 +356,12 @@ class Scraper:
 
 
             except Exception as e:
-                print(f"Error scraping {both_links}: {e}")
-        print(f'url is {both_links} is done')
+                print(f"Error scraping {url}: {e}")
+        print(f'url is {url} is done')
 
       
 
-        return results
+        return leads
 
 
 # async def main():

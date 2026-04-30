@@ -18,7 +18,7 @@ class queryBuilder:
             if ind and loc and size:
                 scale_term = "large" if size > 500 else "small" if size < 50 else ""
                 if scale_term:
-                    queries.append(f"{scale_term} {ind} companies/firms in {loc} -job -hiring")
+                    queries.append(f"{scale_term} {ind} companies in {loc} -job -hiring")
 
             elif ind and loc:
                 queries.append(f"{ind} companies in {loc} -job -hiring")
