@@ -4,12 +4,6 @@ from scrapper import Scraper
 from queryBuilder import queryBuilder
 from queryHarvest import queryHarvest
 
-
-
-
-
-
-
 class ScraperOrchestrator:
     def __init__(self, scrape_request):
         self.scrape_request = scrape_request.model_dump(exclude_none=True)
@@ -20,12 +14,14 @@ class ScraperOrchestrator:
         self.target_num = scrape_request.target_num
 
     async def run(self):
-        print(self.scrape_request)
+        print("data sent",self.scrape_request)
         #generate multiple queries(array form) to search by:
         queries = self.query_builder.generate_queries(self.scrape_request)
         # queries=["schools in gauteng"]
        
         print(f"Generated {len(queries)} search queries")
+        print(queries)
+        
         # return
         #loop through the queries, use them in SerpAPI and scrapes the urls returned by each query
         for idx, query in enumerate(queries, 1):
@@ -58,9 +54,12 @@ class ScraperOrchestrator:
             print("found",urls)
             
             # Scrape the URLs
-            details = {"job_name":self.scrape_request.job_name,"lead_type":self.scrape_request.lead_type}
-            leads = await self.scraper.scrape_urls([urls[1]], self.target_num,job_id,details)
+            details = {"job_name":self.scrape_request.get('job_name'),"lead_type":self.scrape_request.get('lead_type')}
+            
+            leads = await self.scraper.scrape_urls(urls, self.target_num,job_id,details)
             print("all the leads", leads)
+
+            # return
             final_count = 0
             if leads:
                 inserted = self.db.bulk_insert_leads(leads)
@@ -70,10 +69,10 @@ class ScraperOrchestrator:
             else:
                 print(f"No leads extracted from URLs for query:{query}")
         
-        print(f"\n{'='*60}")
-        print(f"Scraping completed!")
-        print(f"Final count: {final_count}/{self.target_num} leads")
-        print(f"{'='*60}")
+        # print(f"\n{'='*60}")
+        # print(f"Scraping completed!")
+        # print(f"Final count: {final_count}/{self.target_num} leads")
+        # print(f"{'='*60}")
 
 
 # async def test():

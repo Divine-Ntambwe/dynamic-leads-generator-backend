@@ -1,9 +1,16 @@
 import os
+import sys
+import asyncio
+
+# Fix for Windows asyncio subprocess issues - MUST be set before any async operations
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import ssl
 import asyncpg
 import bcrypt
 import jwt
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -102,7 +109,7 @@ class ScrapeRequest(BaseModel):
     job_title: Optional[str] = None
     employee_range: Optional[int] = 0
     add_terms: Optional[str] = None
-    target_num: Optional[int] = None
+    target_num: Optional[int] = 0
     lead_type: str = None
 
 # --- Routes ---

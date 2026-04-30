@@ -1,50 +1,35 @@
 class queryBuilder:
 
     def generate_queries(self,data):
-        print("The data",data)
         queries = []
-        
-        loc = data.get('location', '')
+          
+        full_loc = data.get('location', '')
+        loc = full_loc[:full_loc.find(",")]
+        print(full_loc,loc)
         ind = data.get('industry', '')
         pos = data.get('job_position', '')
         title = data.get('job_title', '')
         size = data.get('employee_range')
         terms = data.get('add_terms', '')
+        lead_type= data.get('lead_type','')
+
+        # for the industry in the specific location if looking for business leads
+        if lead_type == "business":
+            if ind and loc and size:
+                scale_term = "large" if size > 500 else "small" if size < 50 else ""
+                if scale_term:
+                    queries.append(f"{scale_term} {ind} companies/firms in {loc} -job -hiring")
+
+            elif ind and loc:
+                queries.append(f"{ind} companies in {loc} -job -hiring")
 
 
-        if ind and loc:
-            # queries.append(f"list of {ind} companies in {loc}")
-            queries.append(f"top {ind} firms {loc}")
+        if lead_type == "people":
+            if title and pos and loc and ind:
+                # queries.append(f'people {ind} company {title} of {pos} in {loc} contact directory -job -hiring' )
+                queries.append(f'site:za.linkedin.com people {ind} company {title} of {pos} in {loc} contact directory -job -hiring' )
+            elif pos and loc and ind:
+                # queries.append(f'people {ind} company {pos} in {loc} contact directory -job -hiring')
+                queries.append(f'site:za.linkedin.com people {ind} company {pos} in {loc} contact directory -job -hiring')
 
-        # # 2. The Decision Maker Search (Title vs Position)
-        # # Uses quotes to find exact staff matches
-        # target_role = title or pos
-        # if target_role and loc:
-        #     # Example: "Head of Marketing" Johannesburg
-        #     query_base = f'"{target_role}" {loc}'
-        #     queries.append(query_base)
-            
-        #     if terms:
-        #         queries.append(f"{query_base} {terms}")
-        #     else:
-        #         queries.append(f"{query_base} contact directory")
-
-        # # 3. Industry + Scale (Using Employee Range)
-        # # Small ranges usually imply "startup" or "boutique", large implies "enterprise"
-        # if ind and loc and size:
-        #     scale_term = "enterprise" if size > 500 else "small business" if size < 50 else ""
-        #     if scale_term:
-        #         queries.append(f"{scale_term} {ind} in {loc}")
-
-        # # 4. The "Lead Magnet" (Industry + Location + Add Terms)
-        # # Example: "Logistics companies Gauteng email address"
-        # if ind and loc and terms:
-        #     queries.append(f"{ind} {loc} {terms}")
-
-        # # 5. Social/Professional Discovery
-        # if ind and target_role and loc:
-        #     queries.append(f"site:linkedin.com/company {ind} {loc} {target_role}")
-
-        # Clean up and return unique results
-        # Clean up: Remove empty strings and duplicates
         return set(q for q in queries if q.strip())

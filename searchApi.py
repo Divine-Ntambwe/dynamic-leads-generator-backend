@@ -39,7 +39,7 @@ class SearchAPI:
             for result in results.get("organic_results", []):
                 link = result.get("link")
                 if link and not any(x in link.lower() for x in [
-                    "facebook.com", "instagram.com",
+                     "instagram.com"
                     "google.com", "youtube.com", "twitter.com"
                 ]):
                     urls.append(link)
