@@ -1,9 +1,11 @@
+from multiprocessing import connection
+
 import asyncpg
 import ssl
 import os
 from dotenv import load_dotenv
 import json
-import psycopg
+import psycopg2
 
 load_dotenv()
 
@@ -12,7 +14,7 @@ ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
 class Database:
     DATABASE_URL = os.getenv("DATABASE_URL")
-    conn = psycopg.connect(DATABASE_URL)
+    conn = psycopg2.connect(DATABASE_URL)
 
     def __init__(self, conn = conn):
         self.conn = conn
@@ -23,24 +25,48 @@ class Database:
             """
             INSERT INTO visited_urls (url,visited_at,job_id,scrapped,query)
             VALUES (%s,CURRENT_TIMESTAMP,%s,%s,%s)
+            RETURNING id
             """,
             (url,job_id, False,query),
         )
+        result = cur.fetchone()
+        if result is not None:
+            url_id = result[0]
+            self.conn.commit()
+            cur.close()
+            return url_id
+        else:
+            self.conn.commit()
+            return 0
+        
 
-    def url_exists(self,job_id, query_str, url):
+    def url_exists(self,user_email, query_str, url):
         cur = self.conn.cursor()
 
         sql = """
-        SELECT 1 FROM visited_urls 
-        WHERE job_id = %s 
+        SELECT job_id FROM visited_urls 
+        WHERE 
+            scrapped = TRUE
             AND query = %s 
             AND url = %s
             
         LIMIT 1;
         """
 
-        cur.execute(sql, (job_id, query_str, url))
-        return cur.fetchone() is not None
+        cur.execute(sql, (query_str, url))
+        result = cur.fetchone()
+        if result is None:
+            return False
+        else:
+            job_id = result[0]
+
+        cur.execute("""
+                SELECT * FROM jobs WHERE id = %s AND user_email = %s
+                    """, (job_id, user_email))
+        self.conn.commit()
+        final_result = cur.fetchone()
+        
+        return final_result is not None
 
     def mark_url_visited(self, url, job_id):
         cur = self.conn.cursor()
@@ -90,16 +116,18 @@ class Database:
         cur = self.conn.cursor()
         cur.execute(
             """
-            INSERT INTO jobs (user_email, name, lead_type, status, triggered_at, updated_at, location, job_title)
-            VALUES (%s, %s, %s, False,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s,%s)
+            INSERT INTO jobs (user_email, name, lead_type, status, triggered_at, updated_at, location, job_title,target_leads)
+            VALUES (%s, %s, %s, %s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s,%s,%s)
             RETURNING id
         """,
             (
                 job_details.get('email'),
                 job_details.get('job_name'),
                 job_details.get('lead_type'),
+                "running",
                 job_details.get('location'),
-                job_details.get('job_title')
+                job_details.get('job_title'),
+                job_details.get('target_num')
             ),
         )
         result = cur.fetchone()
@@ -118,15 +146,18 @@ class Database:
         self.conn.commit()
         return result[0] if result else 0
 
-    def mark_query_completed(self, job_id):
+    def mark_job_completed(self, job_id,status):
         cur = self.conn.cursor()
         cur.execute(
             """
-            UPDATE query_progress SET completed = TRUE, updated_at = CURRENT_TIMESTAMP
+            UPDATE jobs SET status = %s, updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
         """,
-            (job_id,),
+            (status, job_id),
         )
+        self.conn.commit()
+        return
+        
 
     def look_for_unfinished(self):
         cur = self.conn.cursor()
@@ -144,22 +175,6 @@ class Database:
             "SELECT 1 FROM schools WHERE fingerprint=$1", fingerprint
         )
         return result is not None
-
-    async def bulk_insert_schools(self, schools):
-        records = [
-            (s["name"], s["email"], s["phone"], s["website"], s["fingerprint"])
-            for s in schools
-            if not await self.school_exists(s["fingerprint"])
-        ]
-
-        if records:
-            await self.conn.executemany("""
-                INSERT INTO schools (name, email, phone, website, fingerprint)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (fingerprint) DO NOTHING
-            """, records)
-
-        return len(records)
 
     async def get_school_count(self):
         return await self.conn.fetchval("SELECT COUNT(*) FROM schools")
@@ -225,3 +240,5 @@ async def init_db(pool):
                 updated_at TIMESTAMP
             )
         """)
+
+Database().url_exists("divinentambwe28@gmail.com","Computer Software companies in Johannesburg -job -hiring","https://www.sivoxi.com/")

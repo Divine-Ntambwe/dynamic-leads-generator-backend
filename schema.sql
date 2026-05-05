@@ -1,8 +1,10 @@
 CREATE TABLE IF NOT EXISTS visited_urls (
     id BIGSERIAL PRIMARY KEY,
     url TEXT NOT NULL,
-    url_hash VARCHAR(64) UNIQUE NOT NULL,
-    visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    job_id BIGSERIAL NOT NULL,
+    scrapped BOOLEAN DEFAULT FALSE,
+    query TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS leads (
@@ -16,13 +18,8 @@ CREATE TABLE IF NOT EXISTS leads (
     organization_name TEXT,
     job_position TEXT,
     notes TEXT,
-    fingerprint VARCHAR(64) UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX IF NOT EXISTS idx_url_hash ON visited_urls(url_hash);
-CREATE INDEX IF NOT EXISTS idx_fingerprint ON leads(fingerprint);
-CREATE INDEX idx_query_progress_urls ON query_progress USING GIN (fetched_urls);
 
 CREATE TABLE IF NOT EXISTS query_progress (
     id BIGSERIAL PRIMARY KEY,

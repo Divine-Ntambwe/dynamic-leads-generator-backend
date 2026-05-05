@@ -11,22 +11,19 @@ import asyncpg
 import bcrypt
 import jwt
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+# from jose import jwt
+# from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from typing import Optional
 from database import init_db
 from orchestrator import ScraperOrchestrator
+
 load_dotenv()
 
 app = FastAPI()
-
-
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,7 +36,7 @@ app.add_middleware(
         "Accept",
         "Origin",
         "X-Requested-With",
-        "Access-Control-Allow-Origin"
+        "Access-Control-Allow-Origin",
     ],
     expose_headers=["*"],
     max_age=3600,
@@ -47,7 +44,6 @@ app.add_middleware(
 
 security = HTTPBearer()
 
-TARGET_SCHOOLS = 20
 SECRET_KEY = os.getenv("SECRET_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -119,16 +115,42 @@ async def root():
     return {"message": "Welcome to the School Scraper API"}
 
 @app.post("/scrape")
-async def scrape(formData: ScrapeRequest):
-    print(formData)
-    orchestrator = ScraperOrchestrator(formData)
-    await orchestrator.run()
+async def scrape(
+    formData: ScrapeRequest,
+    username: str = Depends(verify_token),
+    conn=Depends(get_db),
+):
+
+
+    try:
+        # 2. Pass job_id so all leads are tagged with the correct jobs.id
+        orchestrator = ScraperOrchestrator(formData)
+        await orchestrator.run()
+
+        # 3. Count inserted leads and mark job complete
+        # lead_count = await conn.fetchval(
+        #     "SELECT COUNT(*) FROM leads WHERE job_id = $1", job_id
+        # )
+        # await conn.execute("""
+        #     UPDATE jobs
+        #     SET status = 'complete', leads = $1, updated_at = now()
+        #     WHERE id = $2
+        # """, lead_count, job_id)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scrape failed: {str(e)}")
+
     return {"message": "Scraping completed!"}
 
 @app.get("/unfinished-jobs")
-async def look_unfinished_jobs():
-    pass    
-
+async def look_unfinished_jobs(username: str = Depends(verify_token), conn=Depends(get_db)):
+    rows = await conn.fetch("""
+        SELECT id, name, status, lead_type, leads, triggered_at, updated_at
+        FROM jobs
+        WHERE user_email = $1 AND status IN ('queued', 'running')
+        ORDER BY triggered_at DESC
+    """, username)
+    return [dict(row) for row in rows]
 
 @app.post("/signup")
 async def signup(credentials: UserCredentials, conn=Depends(get_db)):
@@ -138,7 +160,7 @@ async def signup(credentials: UserCredentials, conn=Depends(get_db)):
     hashed = hash_password(credentials.password)
     await conn.execute(
         "INSERT INTO users (name, email, password) VALUES ($1, $2, $3)",
-        credentials.name, credentials.email, hashed
+        credentials.name, credentials.email, hashed,
     )
     return {"message": "User created successfully", "token": create_token(credentials.email)}
 
@@ -149,10 +171,41 @@ async def login(credentials: UserCredentials, conn=Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return {"message": "Login successful", "token": create_token(credentials.email)}
 
+@app.get("/jobs")
+async def get_jobs(username: str = Depends(verify_token), conn=Depends(get_db)):
+    rows = await conn.fetch("""
+        SELECT id, name, status, lead_type, leads, triggered_at,target_leads, updated_at
+        FROM jobs
+        WHERE user_email = $1
+        ORDER BY triggered_at DESC
+    """, username)
+    return [
+        {
+            "id":         row["id"],
+            "name":       row["name"],
+            "status":     row["status"],
+            "lead_type":  row["lead_type"],
+            "leads":      row["leads"],
+            "triggered":  row["leads"],
+            "target_leads": row["target_leads"],
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        }
+        for row in rows
+    ]
 
-# async def main():
-#     orchestrator = ScraperOrchestrator(target_schools=TARGET_SCHOOLS)
-#     await orchestrator.run()
+@app.get("/jobs/{job_id}/leads")
+async def get_leads(job_id: int, username: str = Depends(verify_token), conn=Depends(get_db)):
+    rows = await conn.fetch(
+        "SELECT * FROM leads WHERE job_id = $1 ORDER BY created_at ASC", job_id
+    )
+    return [dict(row) for row in rows]
 
-# if __name__ == "__main__":
-#     asyncio.run(main())
+@app.patch("/leads/{lead_id}/mark")
+async def mark_lead(lead_id: int, username: str = Depends(verify_token), conn=Depends(get_db)):
+    row = await conn.fetchrow(
+        "UPDATE leads SET marked = NOT marked WHERE id = $1 RETURNING id, marked",
+        lead_id
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return {"id": row["id"], "marked": row["marked"]}

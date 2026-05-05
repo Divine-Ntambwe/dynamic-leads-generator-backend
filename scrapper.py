@@ -1,4 +1,5 @@
 import asyncio
+from wsgiref import headers
 from utils import hash_url
 import asyncio
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig, LLMConfig
@@ -26,6 +27,15 @@ import requests
 
 load_dotenv()
 
+open_router_key = os.getenv("OPEN_ROUTER_API_KEY")
+ollama_link = os.getenv("OLLAMA_LINK")
+
+ollama_key = os.getenv("OLLAMA_API_KEY")
+open_router_link = os.getenv("OPEN_ROUTER_LINK")
+
+crawl4ai_link = os.getenv("CRAWL4AI_LINK")
+crawl4ai_token = os.getenv("CRAWL4AI_TOKEN")
+
 contact_scorer = KeywordRelevanceScorer(
     keywords=[
         "contact", "about", "support", "location", 
@@ -49,8 +59,8 @@ class Leads(BaseModel):
 extraction_strategy = LLMExtractionStrategy(
     llm_config=LLMConfig(
         provider="ollama/qwen3.5:397b-cloud",
-        api_token= os.getenv("OLLAMA_API_KEY"),
-        base_url="https://unsingable-streakedly-letha.ngrok-free.dev",
+        api_token= open_router_key,
+        base_url=open_router_link,
     ),
     schema=Leads.model_json_schema(),  # ← pydantic v2 fix
     extraction_type="schema",
@@ -152,26 +162,14 @@ class Scraper:
         
         
         for url in urls:
-
-            if count == target_schools:
+            if count >= target_schools:
                 print("Reached target school count during scraping")
                 break
-            count+=2 
+            print(f'link {count}')
 
-            # link1 = urls[i]
-            # if i+1 >= len(urls): 
-            #     link2 = ""
-            # else:
-            #     link2 = urls[i+1]
-                
-            # both_links = [link1,link2]
-            # both_links =[link1]
-            # if both_links.count(""):
-            #     both_links.pop(both_links.index(""))
-            # print(both_links)
-            # continue
-            # deepcrawl = None
-            # print(link1.find("linkedin") == -1, link2.find("linkedin") == -1)
+            count+=1 
+
+            
             if not url.find("linkedin") == -1 :
                 deepcrawl = None
             else:
@@ -195,9 +193,9 @@ class Scraper:
             try:
                 job_details = {"job_id":job_id,**job_details}
                 response = requests.post(
-                    'http://localhost:11235/crawl', 
+                    crawl4ai_link, 
                     json={
-                    "urls": urls,
+                    "urls": [url],
     "browser_config":{
         "type":"BrowserConfig",
         "params":{
@@ -224,7 +222,8 @@ class Scraper:
             # "scrapping_strategy":LXMLWebScrapingStrategy()
             # "stream":True,
             
-            "deep_crawl_strategy":deepcrawl,
+            "deep_crawl_strategy":None,
+            # deepcrawl,
             # {
             #     "type":"BestFirstCrawlingStrategy",
             #     "params":{
@@ -246,9 +245,9 @@ class Scraper:
                     "llm_config": {
                         "type": "LLMConfig",
                         "params": {
-                            "provider": "ollama/qwen3-coder:480b-cloud",
-                            "api_token": "1c5815a581be48acaed58ef87b30237f.YpZ3qB4Ny6_JLuuNILV6X1n8",
-                            "base_url": "https://unsingable-streakedly-letha.ngrok-free.dev"
+                            "provider": "openrouter/openai/gpt-oss-120b:free",
+                            "api_token": open_router_key,
+                            # "base_url": open_router_link
                         }
                     },
                     "schema": {
@@ -297,24 +296,29 @@ class Scraper:
                 }
             }
         }
-    }
-                })
+    } 
+               
+                },
+                 headers={'Authorization': 'Bearer ' + crawl4ai_token}
+                )
                 data = response.json()
                 # print(len(data.get("results")))
                 current_leads = None
                 url_lead_added = False
                 if bool(deepcrawl) :
                     for result in data.get('results'):
-                        print(result.get("extracted_content"), print(type(result.get("extracted_content"))))
-                        if not result.get("extracted_content"):
+                        print("extracted_content:",result.get("extracted_content"), "type:",type(result.get("extracted_content")))
+                        if len(result.get("extracted_content")) == 0:
+                            print(result.get("extracted_content"))
+                            print("no content extracted for this url, skipping...")
                             continue
                         content = json.loads(result.get("extracted_content"))[0]
                         print("content is",content, "type is", type(content))
                         
                         if content.get('error','') == False:
                             print("is not false")
-                            has_phone = len(content.get('phone', [])) > 0
-                            has_email = len(content.get('email', [])) > 0
+                            has_phone = content.get('phone', "") is not None 
+                            has_email = content.get('email', "") is not None
                             has_org = content.get("organization_name")
                             
                             # If found both phone and email
@@ -347,10 +351,9 @@ class Scraper:
                 print("FINAL DATA",leads)
 
 
-                # if leads_data:
-                #     results.append(leads_data)
-                #     self.db.mark_url_visited(url,job_id)
-                #     count += 1
+                if leads:
+                    self.db.mark_url_visited(url,job_id)
+                    count += 1
 
         
 

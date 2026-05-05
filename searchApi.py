@@ -16,7 +16,6 @@ class SearchAPI:
     # SERPAPI_KEY = "c954f755cdd0317ea32b4c1bcffd9abe4cc4fb01ecbadf3379cbf9700050a98e"
     
     SERPAPI_KEY = os.getenv("SERPAPI_KEY")
-    print("SERPAPI KEY", SERPAPI_KEY)
     MAX_RESULTS_PER_PAGE = 10
     MAX_START_POSITION = 20  # SerpAPI max is 100 results (0-90 in steps of 10)
     
@@ -27,7 +26,7 @@ class SearchAPI:
             "q": query, #search term
             "api_key": self.SERPAPI_KEY,
             "engine": "google",
-            "num": 2,
+            "num": 10,
             "start": start
         }
         
