@@ -4,8 +4,12 @@ lxml==4.9.3
 python-dotenv
 fastapi
 uvicorn
-crawl4ai
+# crawl4ai
 pydantic
 asyncpg
 bcrypt
 python-jose
+websockets
+beautifulsoup4
+tldextract
+python-multipart
