@@ -157,17 +157,21 @@ class Scraper:
         count = 0
         print("stop",target_schools)
         job_details = {"job_id":job_id,**job_details}
-        print("THE DETAILS",job_details)
+        lead_type = job_details.get("lead_type","")
+        if lead_type == "people":
+            instuction = """Extract any details in the url about the person like name,email,phone number. 
+            if you can't get anything from the linked url extract the name and surname from the name field and use the linkedin url as the website field"""
+        else:
+            instuction = "Extract any contact details in the url about the company like name,email,phone number."
        
-        
+        print(instuction)
         
         for url in urls:
             if count >= target_schools:
                 print("Reached target school count during scraping")
                 break
-            print(f'link {count}')
+            
 
-            count+=1 
 
             
             if not url.find("linkedin") == -1 :
@@ -290,7 +294,7 @@ class Scraper:
                         }
                     },
                     "extraction_type": "schema",
-                    "instruction": "Extract any contact details in the url about the person/company like name,linkedin,email,phone number. ",
+                    "instruction": instuction,
                     "apply_chunking": False,
                     "input_format": "markdown"
                 }
@@ -340,18 +344,21 @@ class Scraper:
                                     leads.append(current_leads)
                                     url_lead_added = True
 
-                    print("leads are",leads)
+                    
 
-                        # print(result.get("extracted_content"))
+                        
 
-                else:
+                else: 
                     for result in data.get('results'):
-                        print(result.get("extracted_content"))
+                        content = json.loads(result.get("extracted_content"))[0]
+                        print("content is",content, "type is", type(content))
+                        leads.append({**job_details, **content})
+                        url_lead_added = True
 
                 print("FINAL DATA",leads)
+                print(f'link {count} + found {len(leads)}')
 
-
-                if leads:
+                if url_lead_added:
                     self.db.mark_url_visited(url,job_id)
                     count += 1
 

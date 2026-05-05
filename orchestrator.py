@@ -5,22 +5,24 @@ from queryBuilder import queryBuilder
 from queryHarvest import queryHarvest
 
 class ScraperOrchestrator:
-    def __init__(self, scrape_request):
-        self.scrape_request = scrape_request.model_dump(exclude_none=True)
+    def __init__(self, scrape_request,job_id):
+        self.scrape_request = scrape_request
         self.db = Database()
         self.scraper = Scraper(self.db)
         self.query_builder = queryBuilder()
-        # Pass job_id into queryHarvest so it doesn't create its own
+        self.job_id = job_id
         self.query_harvester = queryHarvest()
-        self.target_num = scrape_request.target_num
+        self.target_num = scrape_request.get('target_num','')
 
     async def run(self):
-        print("data sent",self.scrape_request)
+        print("data sent",self.scrape_request,self.target_num)
         #generate multiple queries(array form) to search by:
         queries = self.query_builder.generate_queries(self.scrape_request)
         print(f"Generated {len(queries)} search queries")
         print(queries)
         final_count = 0
+        
+        job_id = self.job_id
         
         # return
         #loop through the queries, use them in SerpAPI and scrapes the urls returned by each query
@@ -28,11 +30,10 @@ class ScraperOrchestrator:
 
             # Harvest URLs from this query
             email = self.scrape_request.get('email')
-            results_urls = self.query_harvester.harvest_query(query, self.scrape_request,max_urls_per_query=100) #returns urls and job id
+            results_urls = self.query_harvester.harvest_query(query, self.scrape_request,job_id,max_urls_per_query=100) #returns urls and job id
             print(results_urls["result"])
             urls = results_urls["urls"]
 
-            job_id = results_urls["job_id"]
 
             current_count = self.db.get_leads_count(job_id)
             print("current count", current_count)
@@ -69,12 +70,14 @@ class ScraperOrchestrator:
                 print(f"No leads extracted from URLs for query:{query}")
         
         # print(f"\n{'='*60}")
-        if final_count >= 0:
-            self.db.mark_job_completed(job_id,"complete")
-
-        print(f"Scraping completed!")
-        print(f"Final count: {final_count}/{self.target_num} leads")
-        # print(f"{'='*60}")
+        if final_count > 0:
+            self.db.mark_job_completed(job_id,"complete",final_count)
+            print(f"Scraping completed!")
+            print(f"Final count: {final_count}/{self.target_num} leads")
+        else:
+            self.db.mark_job_completed(job_id,"complete",final_count)
+            print(f"Scraping completed but target not reached.")
+            print(f"Final count: {final_count}/{self.target_num} leads")    
 
 
 # async def test():

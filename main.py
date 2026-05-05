@@ -10,16 +10,18 @@ import ssl
 import asyncpg
 import bcrypt
 import jwt
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, WebSocket, WebSocketDisconnect
 # from jose import jwt
 # from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from typing import Optional
+from typing import Optional, Dict, Set
 from database import init_db
 from orchestrator import ScraperOrchestrator
+
+from database import Database
 
 load_dotenv()
 
@@ -91,6 +93,40 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+
+# --- WebSocket Connection Manager ---
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[int, Set[WebSocket]] = {}
+
+    async def connect(self, job_id: int, websocket: WebSocket):
+        await websocket.accept()
+        if job_id not in self.active_connections:
+            self.active_connections[job_id] = set()
+        self.active_connections[job_id].add(websocket)
+        print(f"WebSocket connected for job {job_id}. Total clients: {len(self.active_connections[job_id])}")
+
+    def disconnect(self, job_id: int, websocket: WebSocket):
+        if job_id in self.active_connections:
+            self.active_connections[job_id].discard(websocket)
+            if not self.active_connections[job_id]:
+                del self.active_connections[job_id]
+        print(f"WebSocket disconnected for job {job_id}")
+
+    async def broadcast(self, job_id: int, message: dict):
+        if job_id in self.active_connections:
+            connections = list(self.active_connections[job_id])
+            print(f"Broadcasting message to {len(connections)} connections for job {job_id}")
+            for connection in connections:
+                try:
+                    await connection.send_json(message)
+                except Exception as e:
+                    print(f"WebSocket broadcast failed for job {job_id}: {e}")
+        else:
+            print(f"No active WebSocket connections to broadcast for job {job_id}")
+
+manager = ConnectionManager()
+
 # --- Models ---
 class UserCredentials(BaseModel):
     name: str | None = None
@@ -104,10 +140,11 @@ class ScrapeRequest(BaseModel):
     job_position: Optional[str] = None
     job_title: Optional[str] = None
     employee_range: Optional[int] = 0
-    add_terms: Optional[str] = None
+    custom_keywords: Optional[str] = None
     target_num: Optional[int] = 0
     lead_type: str = None
     email: Optional[str] = None
+
 
 # --- Routes ---
 @app.get("/")
@@ -117,30 +154,163 @@ async def root():
 @app.post("/scrape")
 async def scrape(
     formData: ScrapeRequest,
+    background_task: BackgroundTasks,
+  
     username: str = Depends(verify_token),
     conn=Depends(get_db),
 ):
-
-
     try:
-        # 2. Pass job_id so all leads are tagged with the correct jobs.id
-        orchestrator = ScraperOrchestrator(formData)
-        await orchestrator.run()
-
-        # 3. Count inserted leads and mark job complete
-        # lead_count = await conn.fetchval(
-        #     "SELECT COUNT(*) FROM leads WHERE job_id = $1", job_id
-        # )
-        # await conn.execute("""
-        #     UPDATE jobs
-        #     SET status = 'complete', leads = $1, updated_at = now()
-        #     WHERE id = $2
-        # """, lead_count, job_id)
+        # Create a job record first
+        job_name = formData.job_name or "Untitled Job"
+        formData = formData.model_dump(exclude_none=True)
+        job_id = Database().create_job(formData)
+        
+        print("JOB ID:", job_id)
+        
+        # Add the orchestrator task to run in background
+        background_task.add_task(run_orchestrator, formData, job_id)
+        
+        
+        
+        
+        return {"message": "Scraping Started", "job_id": job_id, "status": "queued"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Scrape failed: {str(e)}")
 
-    return {"message": "Scraping completed!"}
+async def run_orchestrator(formData, job_id):
+    """Run orchestrator in background and handle job status updates"""
+    try:
+        orchestrator = ScraperOrchestrator(formData, job_id)
+        result = await orchestrator.run()
+        
+        # await manager.broadcast(job_id, {
+        #     "status": "completed",
+        #     "is_complete": True,
+        #     "is_success": True,
+        # })
+        print(f"Job {job_id} completed successfully")
+        return result
+    except Exception as e:
+        # Update job status to failed
+        try:
+            async with pool.acquire() as conn:
+                job_row = await conn.fetchrow(
+                    "UPDATE jobs SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING name",
+                    "failed", job_id
+                )
+            
+            # Broadcast failure status via WebSocket
+            await manager.broadcast(job_id, {
+                "status": "failed",
+                "is_complete": True,
+                "is_success": False,
+                "name": job_row["name"] if job_row else "Job",
+                "error": str(e),
+            })
+        except Exception as db_error:
+            print(f"Failed to update job status: {db_error}")
+        
+        print(f"Job {job_id} failed with error: {str(e)}")
+        raise
+
+
+@app.get("/jobs/{job_id}/status")
+async def get_job_status(job_id: int, username: str = Depends(verify_token), conn=Depends(get_db)):
+    """Get the status of a specific job"""
+    row = await conn.fetchrow(
+        """
+        SELECT id, name, status, lead_type, leads, target_leads, triggered_at, updated_at
+        FROM jobs
+        WHERE id = $1 AND user_email = $2
+        """,
+        job_id, username
+    )
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "status": row["status"],
+        "lead_type": row["lead_type"],
+        "leads": row["leads"],
+        "target_leads": row["target_leads"],
+        "triggered_at": row["triggered_at"].isoformat() if row["triggered_at"] else None,
+        "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        "is_complete": row["status"] in ["completed", "failed"],
+        "is_success": row["status"] == "completed",
+    }
+
+
+@app.websocket("/ws/jobs/{job_id}")
+async def websocket_job_status(websocket: WebSocket, job_id: int, token: str):
+    """WebSocket endpoint for real-time job status updates"""
+    try:
+        # 2. Verify the JWT token
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            username = payload["sub"]
+        except jwt.PyJWTError:
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+        
+        # 3. Verify user owns this job with explicit type casting
+        async with pool.acquire() as conn:
+            # We use $1::text to tell Postgres: "Treat this input as text"
+            # This solves the 'operator does not exist: text = integer' error
+            job_row = await conn.fetchrow(
+                "SELECT user_email FROM jobs WHERE id = $1",
+                job_id
+            )
+            
+            if not job_row:
+                await websocket.close(code=4004, reason="Job not found")
+                return
+                
+            if job_row["user_email"] != username:
+                await websocket.close(code=4003, reason="Unauthorized")
+                return
+        
+        # 4. Connect to your ConnectionManager
+        await manager.connect(job_id, websocket)
+
+        # Send current job state immediately so late-connecting clients don't miss completion
+        async with pool.acquire() as conn:
+            current_job = await conn.fetchrow(
+                "SELECT status, name, leads, target_leads FROM jobs WHERE id = $1",
+                job_id
+            )
+        print("finished job", current_job)
+        if current_job:
+            await websocket.send_json({
+                "status": current_job["status"],
+                "name": current_job["name"],
+                "leads": current_job["leads"],
+                "target_leads": current_job["target_leads"],
+                "is_complete": current_job["status"] in ["complete", "failed"],
+                "is_success": current_job["status"] == "complete",
+            })
+
+        try:
+            while True:
+                # Keep connection alive and listen for client messages
+                data = await websocket.receive_text()
+                # You can handle incoming client messages here if needed
+        except WebSocketDisconnect:
+            manager.disconnect(job_id, websocket)
+            
+    except Exception as e:
+        # Log the error for debugging
+        print(f"WebSocket error for job {job_id}: {str(e)}")
+        try:
+            # Use 1011 (Internal Error) or your custom 4000
+            await websocket.close(code=1011, reason="Internal server error")
+        except:
+            pass
+
 
 @app.get("/unfinished-jobs")
 async def look_unfinished_jobs(username: str = Depends(verify_token), conn=Depends(get_db)):

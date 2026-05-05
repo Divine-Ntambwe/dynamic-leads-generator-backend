@@ -41,6 +41,7 @@ class Database:
         
 
     def url_exists(self,user_email, query_str, url):
+        
         cur = self.conn.cursor()
 
         sql = """
@@ -82,9 +83,10 @@ class Database:
         return cur.fetchone() is not None
 
     def bulk_insert_leads(self, leads):
-        print("In DB",leads)
         cur = self.conn.cursor()
-        
+        for lead in leads:
+            if lead.get('organization_name') is None:
+                lead['organization_name'] = lead.get('name')
         if leads:
             cur.executemany(
                 """
@@ -112,7 +114,7 @@ class Database:
         print("result", result)
         return result if result else (0, False)
 
-    def create_job(self, query, start_position, job_details, completed=False):
+    def create_job(self, job_details):
         cur = self.conn.cursor()
         cur.execute(
             """
@@ -131,6 +133,7 @@ class Database:
             ),
         )
         result = cur.fetchone()
+        self.conn.commit()
         return result[0] if result else 0
 
     def update_query_progress(self, job_id, start_position, completed=False):
@@ -146,16 +149,18 @@ class Database:
         self.conn.commit()
         return result[0] if result else 0
 
-    def mark_job_completed(self, job_id,status):
+    def mark_job_completed(self, job_id,status,final_count=0):
         cur = self.conn.cursor()
+
         cur.execute(
             """
-            UPDATE jobs SET status = %s, updated_at = CURRENT_TIMESTAMP
+            UPDATE jobs SET status = %s, updated_at = CURRENT_TIMESTAMP, leads = %s
             WHERE id = %s
         """,
-            (status, job_id),
+            (status, final_count,job_id),
         )
         self.conn.commit()
+        cur.close()
         return
         
 
@@ -241,4 +246,4 @@ async def init_db(pool):
             )
         """)
 
-Database().url_exists("divinentambwe28@gmail.com","Computer Software companies in Johannesburg -job -hiring","https://www.sivoxi.com/")
+Database().mark_job_completed(107,"complete",13)

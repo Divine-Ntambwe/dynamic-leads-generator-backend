@@ -7,12 +7,14 @@ class queryHarvest:
         self.db = Database()
         self.search_api = SearchAPI()
 
-    def harvest_query(self, query,job_details, max_urls_per_query=100):
+    def harvest_query(self, query,job_details,job_id, max_urls_per_query=100):
         #creates a job queue and the queue id becomes the job id
-        job_id = self.db.create_job(query,0,job_details)
+        
         result = ""
         new_links = []
-        target_num = job_details.get('target_num',0)
+        target_num = job_details.get('target_num',"") + 10 #add buffer to target num to account for duplicates and failed scrapes
+        user_email = job_details.get('email',"")
+        print(f"harvesting query: {query} for job id:{job_id} with target num:{target_num}")
 
         for start in range(1,target_num+1,10):
             links = self.search_api.search_google(query, start)
@@ -29,11 +31,12 @@ class queryHarvest:
                 if count >= target_num:
                     print("Reached target school count during harvesting")
                     break
-                count+=1
+
                 from utils import hash_url
                 url_hash = hash_url(link)
-                exists = self.db.url_exists(job_id, query, link)
+                exists = self.db.url_exists( user_email,query, link)
                 if not exists:
+                    count+=1
                     new_links.append(link)
                     self.db.add_url(link, job_id, query)
                 else:

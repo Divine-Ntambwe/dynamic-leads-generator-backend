@@ -10,9 +10,9 @@ class queryBuilder:
         pos = data.get('job_position', '')
         title = data.get('job_title', '')
         size = data.get('employee_range')
-        terms = data.get('add_terms', '')
+        terms = data.get('custom_keywords')
         lead_type= data.get('lead_type','')
-
+        
         # for the industry in the specific location if looking for business leads
         if lead_type == "business":
             if ind and loc and size:
@@ -30,6 +30,9 @@ class queryBuilder:
                 queries.append(f'site:za.linkedin.com people {ind} company {title} of {pos} in {loc} contact directory -job -hiring' )
             elif pos and loc and ind:
                 # queries.append(f'people {ind} company {pos} in {loc} contact directory -job -hiring')
-                queries.append(f'site:za.linkedin.com people {ind} company {pos} in {loc} contact directory -job -hiring')
-
+                queries.append(f'site:za.linkedin.com people in {pos} in {ind} company in {loc} contact directory -job -hiring')
+        if lead_type == "custom" and terms and loc:
+            queries.append(f"{terms} in {loc}")
+        elif lead_type == "custom" and terms:
+            queries.append(f"{terms}")
         return set(q for q in queries if q.strip())
