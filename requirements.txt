@@ -11,7 +11,6 @@ bcrypt
 python-jose
 PyJWT
 python-jose[cryptography]
-websockets
 beautifulsoup4
 tldextract
 python-multipart
