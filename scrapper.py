@@ -1,11 +1,11 @@
 import asyncio
 from wsgiref import headers
-from utils import hash_url
+# from utils import hash_url
 import asyncio
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig, LLMConfig
-from crawl4ai.extraction_strategy import LLMExtractionStrategy
+# from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig, LLMConfig
+# from crawl4ai.extraction_strategy import LLMExtractionStrategy
 # import tldextract
-from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+# from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 import os
 from dotenv import load_dotenv
 import json
@@ -19,9 +19,9 @@ from database import Database
 # Fix for Windows asyncio subprocess issues
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-from crawl4ai.deep_crawling.scorers import KeywordRelevanceScorer
-from crawl4ai.deep_crawling import BestFirstCrawlingStrategy
-from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
+# from crawl4ai.deep_crawling.scorers import KeywordRelevanceScorer
+# from crawl4ai.deep_crawling import BestFirstCrawlingStrategy
+# from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 import requests
 
 
@@ -36,14 +36,14 @@ open_router_link = os.getenv("OPEN_ROUTER_LINK")
 crawl4ai_link = os.getenv("CRAWL4AI_LINK")
 crawl4ai_token = os.getenv("CRAWL4AI_TOKEN")
 
-contact_scorer = KeywordRelevanceScorer(
-    keywords=[
-        "contact", "about", "support", "location", 
-        "reach-out", "email", "office", "headquarters",
-        "team", "staff", "management"
-    ],
-    weight=0.8  # High weight because contact pages are usually buried 1-2 levels deep
-)
+# contact_scorer = KeywordRelevanceScorer(
+#     keywords=[
+#         "contact", "about", "support", "location", 
+#         "reach-out", "email", "office", "headquarters",
+#         "team", "staff", "management"
+#     ],
+#     weight=0.8  # High weight because contact pages are usually buried 1-2 levels deep
+# )
 keywords=[
     "contact", "about", "support", "location", 
     "reach-out", "email", "office", "headquarters",
@@ -56,18 +56,18 @@ class Leads(BaseModel):
     job_position: Optional[str] = None
     notes: Optional[str] = None
 
-extraction_strategy = LLMExtractionStrategy(
-    llm_config=LLMConfig(
-        provider="ollama/qwen3.5:397b-cloud",
-        api_token= open_router_key,
-        base_url=open_router_link,
-    ),
-    schema=Leads.model_json_schema(),  # ← pydantic v2 fix
-    extraction_type="schema",
-    instruction="""
-        Extract only contact details on the website. Strip ads, nav etc.
-    """
-)
+# extraction_strategy = LLMExtractionStrategy(
+#     llm_config=LLMConfig(
+#         provider="ollama/qwen3.5:397b-cloud",
+#         api_token= open_router_key,
+#         base_url=open_router_link,
+#     ),
+#     schema=Leads.model_json_schema(),  # ← pydantic v2 fix
+#     extraction_type="schema",
+#     instruction="""
+#         Extract only contact details on the website. Strip ads, nav etc.
+#     """
+# )
 
 EXCLUDE_TAGS = [
     "nav", "header", "aside", "script", "style",
@@ -81,71 +81,71 @@ EXCLUDE_SELECTORS = ", ".join([
     "#sidebar", "#comments", "#ad-slot"
 ])
 
-async def crawl(url,job_details):
-    crawl_config = CrawlerRunConfig(
-    only_text=True,
-    excluded_tags=EXCLUDE_TAGS,
-    excluded_selector=EXCLUDE_SELECTORS,
-    markdown_generator=DefaultMarkdownGenerator(),  # ← pass an actual instance
-    extraction_strategy=extraction_strategy,
-    cache_mode="enabled",
-    wait_for="body", # Wait for the page to load
-    delay_before_return_html=2.0, # Give JS time to execute
-    # This helps extract actual text instead of just HTML tags
-    word_count_threshold=10,
-    deep_crawl_strategy=BestFirstCrawlingStrategy(
-    max_depth=2,
-    include_external=False,
-    url_scorer=contact_scorer,
-    max_pages=15,
-    ),
-    scraping_strategy=LXMLWebScrapingStrategy(),
-    stream=True
+# async def crawl(url,job_details):
+#     crawl_config = CrawlerRunConfig(
+#     only_text=True,
+#     excluded_tags=EXCLUDE_TAGS,
+#     excluded_selector=EXCLUDE_SELECTORS,
+#     markdown_generator=DefaultMarkdownGenerator(),  # ← pass an actual instance
+#     extraction_strategy=extraction_strategy,
+#     cache_mode="enabled",
+#     wait_for="body", # Wait for the page to load
+#     delay_before_return_html=2.0, # Give JS time to execute
+#     # This helps extract actual text instead of just HTML tags
+#     word_count_threshold=10,
+#     deep_crawl_strategy=BestFirstCrawlingStrategy(
+#     max_depth=2,
+#     include_external=False,
+#     url_scorer=contact_scorer,
+#     max_pages=15,
+#     ),
+#     scraping_strategy=LXMLWebScrapingStrategy(),
+#     stream=True
     
-    )
+#     )
 
-    browser_config = BrowserConfig(
-        headless=True,
-        java_script_enabled=True,
-        # Stealth mode is crucial for avoiding auth walls
-        enable_stealth=True,
-        avoid_ads=True ,
-        # text_mode:True
-    )
+#     browser_config = BrowserConfig(
+#         headless=True,
+#         java_script_enabled=True,
+#         # Stealth mode is crucial for avoiding auth walls
+#         enable_stealth=True,
+#         avoid_ads=True ,
+#         # text_mode:True
+#     )
    
-    async with AsyncWebCrawler(config=browser_config) as crawler:
+    # async with AsyncWebCrawler(config=browser_config) as crawler:
 
-        # Fetch sitemap
-        sitemap_url = url.rstrip("/") + "/sitemap.xml"
-        sitemap_result = await crawler.arun(url=sitemap_url)
-        urls = re.findall(r"<loc>(.*?)</loc>", sitemap_result.html or "")
-        urls = urls[:10]  # limit: 10
+    #     # Fetch sitemap
+    #     sitemap_url = url.rstrip("/") + "/sitemap.xml"
+    #     sitemap_result = await crawler.arun(url=sitemap_url)
+    #     urls = re.findall(r"<loc>(.*?)</loc>", sitemap_result.html or "")
+    #     urls = urls[:10]  # limit: 10
 
-        if not urls:
-            urls = [url]  # fallback to base URL
+    #     if not urls:
+    #         urls = [url]  # fallback to base URL
 
-        print(f"🔍 Crawling {len(urls)} URLs from {url}")
+    #     print(f"🔍 Crawling {len(urls)} URLs from {url}")
 
-        results = []
+    #     results = []
        
-        for page_url in urls:
-            async for result in await crawler.arun(url=page_url, config=crawl_config):
-            # print(result[0])
-                print(result)
-                if result.success and result.extracted_content:
-                    try:
-                        data = json.loads(result.extracted_content)
+    #     for page_url in urls:
+    #         async for result in await crawler.arun(url=page_url, config=crawl_config):
+    #         # print(result[0])
+    #             print(result)
+    #             if result.success and result.extracted_content:
+    #                 try:
+    #                     data = json.loads(result.extracted_content)
                         
-                        lead = {"job_id":job_details["job_id"],"job_name":job_details["job_name"],"lead_type":job_details["lead_type"],**data[0]}
-                        if lead.get('email') or lead.get('phone'):
-                            results.append(lead)
-                        print(f"✅ Extracted: {result.extracted_content}")
+    #                     lead = {"job_id":job_details["job_id"],"job_name":job_details["job_name"],"lead_type":job_details["lead_type"],**data[0]}
+    #                     if lead.get('email') or lead.get('phone'):
+    #                         results.append(lead)
+    #                     print(f"✅ Extracted: {result.extracted_content}")
 
-                    except json.JSONDecodeError:
-                        print(f"⚠️  Could not parse extraction for {page_url}")
-                else:
-                    print(f"❌ Failed: {page_url}")
-        return results
+    #                 except json.JSONDecodeError:
+    #                     print(f"⚠️  Could not parse extraction for {page_url}")
+    #             else:
+    #                 print(f"❌ Failed: {page_url}")
+    #     return results
 
 class Scraper:
     def __init__(self, db):
