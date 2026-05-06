@@ -51,16 +51,12 @@ class ScraperOrchestrator:
                 continue
 
             print(f"Found {len(urls)} new URLs to scrape")
-            print("found",urls)
            
             # Scrape the URLs
             details = {"job_name":self.scrape_request.get('job_name'),"lead_type":self.scrape_request.get('lead_type')}
             
             leads = await self.scraper.scrape_urls(urls, self.target_num,job_id,details)
-            print("all the leads", leads)
 
-            # return
-            
             if leads:
                 inserted = self.db.bulk_insert_leads(leads)
                 current_count += len(leads)

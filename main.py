@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # Fix for Windows asyncio subprocess issues - MUST be set before any async operations
 if sys.platform == 'win32':
@@ -10,7 +11,7 @@ import ssl
 import asyncpg
 import bcrypt
 import jwt
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -19,11 +20,15 @@ from typing import Optional
 from database import init_db
 from orchestrator import ScraperOrchestrator
 
+
 from database import Database
 
 load_dotenv()
 
 app = FastAPI()
+
+# Thread pool for running blocking code
+executor = ThreadPoolExecutor(max_workers=5)
 
 app.add_middleware(
     CORSMiddleware,
@@ -92,6 +97,13 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+# --- Async wrapper for blocking orchestrator ---
+async def run_scraper_task(orchestrator):
+    """Run orchestrator.run() in a thread pool to avoid blocking the event loop"""
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(executor, lambda: asyncio.run(orchestrator.run()))
+
+
 # --- Models ---
 class UserCredentials(BaseModel):
     name: str | None = None
@@ -106,9 +118,11 @@ class ScrapeRequest(BaseModel):
     job_title: Optional[str] = None
     employee_range: Optional[int] = 0
     custom_keywords: Optional[str] = None
+    custom_type: Optional[str] = None
     target_num: Optional[int] = 0
     lead_type: str = None
     email: Optional[str] = None
+
 
 
 # --- Routes ---
@@ -119,6 +133,7 @@ async def root():
 @app.post("/scrape")
 async def scrape(
     formData: ScrapeRequest,
+    background_tasks: BackgroundTasks = None,
     username: str = Depends(verify_token),
     conn=Depends(get_db),
 ):
@@ -130,13 +145,15 @@ async def scrape(
 
         print("JOB ID:", job_id)
 
-        # Run orchestrator synchronously
+        # Run orchestrator in background thread pool to avoid blocking the event loop
         orchestrator = ScraperOrchestrator(formData, job_id)
-        result = await orchestrator.run()
+        await orchestrator.run()
+        # background_tasks.add_task(run_scraper_task, orchestrator)
+        
 
-        print(f"Job {job_id} completed successfully")
-        return {"message": "Scraping completed successfully", "job_id": job_id, "status": "completed", "leads_found": result}
-
+        print(f"Job {job_id} started in background")
+        return {"message": "Scraping started in background", "job_id": job_id}
+   
     except Exception as e:
         # Update job status to failed
         try:
@@ -177,8 +194,8 @@ async def get_job_status(job_id: int, username: str = Depends(verify_token), con
         "target_leads": row["target_leads"],
         "triggered_at": row["triggered_at"].isoformat() if row["triggered_at"] else None,
         "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
-        "is_complete": row["status"] in ["completed", "failed"],
-        "is_success": row["status"] == "completed",
+        "is_complete": row["status"] in ["complete", "failed"],
+        "is_success": row["status"] == "complete",
     }
 
 

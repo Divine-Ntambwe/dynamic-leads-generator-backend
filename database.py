@@ -83,10 +83,18 @@ class Database:
         return cur.fetchone() is not None
 
     def bulk_insert_leads(self, leads):
+        print("Inserting leads...")
         cur = self.conn.cursor()
+        required_fields = ['job_id', 'job_name', 'lead_type', 'email', 'phone', 'website', 'organization_name', 'job_position', 'notes']
+        
         for lead in leads:
-            if lead.get('organization_name') is None:
+            if lead.get('organization_name') is None and lead.get('name') is not None:
                 lead['organization_name'] = lead.get('name')
+            # Ensure all required fields exist, set to None if missing
+            for field in required_fields:
+                if field not in lead:
+                    lead[field] = None
+        
         if leads:
             cur.executemany(
                 """
