@@ -147,12 +147,12 @@ async def scrape(
 
         # Run orchestrator in background thread pool to avoid blocking the event loop
         orchestrator = ScraperOrchestrator(formData, job_id)
-        await orchestrator.run()
+        result = await orchestrator.run()
         # background_tasks.add_task(run_scraper_task, orchestrator)
         
 
-        print(f"Job {job_id} started in background")
-        return {"message": "Scraping started in background", "job_id": job_id}
+        # print(f"Job {job_id} started in background")
+        return {"message": "Scraping completed successfully", "job_id": job_id, "status": "completed", "leads_found": result}
    
     except Exception as e:
         # Update job status to failed
