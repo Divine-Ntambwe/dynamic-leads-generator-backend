@@ -72,9 +72,8 @@ async def startup():
 
     scheduler.add_job(
         run_weekly_digests,
-        "cron",
-        hour=7,
-        minute=0,
+        "interval",
+        minutes=1,
         args=[pool],
         id="weekly_digest",
         replace_existing=True,

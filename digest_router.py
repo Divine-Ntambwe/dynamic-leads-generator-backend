@@ -46,7 +46,13 @@ async def save_digest_settings(
         if not job_row:
             raise HTTPException(status_code=404, detail="Job not found")
 
+    # Default to 08:00 if user didn't set a time
+    send_time = body.send_time if body.send_time else "08:00"
+
     next_date = date.today() + timedelta(days=7)
+
+    # Default recipient to sign-in email if left blank
+    recipient = body.recipient_email if body.recipient_email else username
 
     await conn.execute(
         """
@@ -78,8 +84,8 @@ async def save_digest_settings(
         """,
         username,
         body.enabled,
-        body.recipient_email,
-        body.send_time,
+        recipient,       # ← sign-in email as fallback
+        send_time,       # ← "08:00" as fallback
         body.job_id,
         job_row["name"] if job_row else None,
         body.new_leads,

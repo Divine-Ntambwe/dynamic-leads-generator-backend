@@ -2,21 +2,21 @@ import smtplib
 import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
 
+load_dotenv()
 
 def send_email(to: str, subject: str, body: str, html_body: str = None):
-    sender   = os.getenv("EMAIL_USER")
+    sender = os.getenv("EMAIL_USER")
     password = os.getenv("EMAIL_PASSWORD")
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = sender
-    msg["To"]      = to
+    msg["From"] = sender
+    msg["To"] = to
 
-    # Plain-text part first — email clients show the last part they support,
-    # so HTML must come second to be preferred over plain text.
+    # Plain text first, HTML second (email clients prefer HTML if available)
     msg.attach(MIMEText(body, "plain"))
-
     if html_body:
         msg.attach(MIMEText(html_body, "html"))
 
