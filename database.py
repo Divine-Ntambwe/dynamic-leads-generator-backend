@@ -12,6 +12,7 @@ load_dotenv()
 ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
+
 class Database:
     DATABASE_URL = os.getenv("DATABASE_URL")
     conn = psycopg2.connect(DATABASE_URL)
@@ -19,7 +20,7 @@ class Database:
     def __init__(self, conn = conn):
         self.conn = conn
 
-    def add_url(self, url,job_id,query):
+    def add_url(self, url, job_id, query):
         cur = self.conn.cursor()
         cur.execute(
             """
@@ -27,7 +28,7 @@ class Database:
             VALUES (%s,CURRENT_TIMESTAMP,%s,%s,%s)
             RETURNING id
             """,
-            (url,job_id, False,query),
+            (url, job_id, False, query),
         )
         result = cur.fetchone()
         if result is not None:
@@ -38,19 +39,22 @@ class Database:
         else:
             self.conn.commit()
             return 0
-        
 
+<<<<<<< HEAD
     def url_exists(self,user_email, query_str, url,job_id=None):
         
         cur = self.conn.cursor()
         
+=======
+    def url_exists(self, user_email, query_str, url):
+        cur = self.conn.cursor()
+>>>>>>> 667e84d2f3ad52c08db4a09e490ce78c8720e2c1
         sql = """
         SELECT job_id FROM visited_urls 
         WHERE 
             scrapped = TRUE
             AND query = %s 
             AND url = %s
-            
         LIMIT 1;
         """
         cur.execute(sql, (query_str, url))
@@ -61,23 +65,22 @@ class Database:
             job_id = result[0]
 
         cur.execute("""
-                SELECT * FROM jobs WHERE id = %s AND user_email = %s
-                    """, (job_id, user_email))
+            SELECT * FROM jobs WHERE id = %s AND user_email = %s
+        """, (job_id, user_email))
         self.conn.commit()
         final_result = cur.fetchone()
-        
         return final_result is not None
 
     def mark_url_visited(self, url, job_id):
         cur = self.conn.cursor()
         cur.execute(
             "UPDATE visited_urls SET scrapped= %s WHERE url = %s AND job_id=%s",
-            (True,url,job_id),
+            (True, url, job_id),
         )
         self.conn.commit()
 
     def school_exists(self, fingerprint):
-        cur = self.conn.cursor() 
+        cur = self.conn.cursor()
         cur.execute("SELECT 1 FROM schools WHERE fingerprint=%s", (fingerprint,))
         return cur.fetchone() is not None
 
@@ -85,33 +88,31 @@ class Database:
         print("Inserting leads...")
         cur = self.conn.cursor()
         required_fields = ['job_id', 'job_name', 'lead_type', 'email', 'phone', 'website', 'organization_name', 'job_position', 'notes']
-        
+
         for lead in leads:
             if lead.get('organization_name') is None and lead.get('name') is not None:
                 lead['organization_name'] = lead.get('name')
-            # Ensure all required fields exist, set to None if missing
             for field in required_fields:
                 if field not in lead:
                     lead[field] = None
-        
+
         if leads:
             cur.executemany(
                 """
                 INSERT INTO leads (job_id, job_name, lead_type, email, phone, url, organization_name, job_position, notes)
-    VALUES (%(job_id)s, %(job_name)s, %(lead_type)s, %(email)s, %(phone)s, %(website)s, %(organization_name)s, %(job_position)s, %(notes)s)
-            """,
+                VALUES (%(job_id)s, %(job_name)s, %(lead_type)s, %(email)s, %(phone)s, %(website)s, %(organization_name)s, %(job_position)s, %(notes)s)
+                """,
                 leads,
             )
             self.conn.commit()
 
         return len(leads)
 
-    def get_leads_count(self,job_id):
+    def get_leads_count(self, job_id):
         cur = self.conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM leads WHERE job_id = %s",(job_id,))
+        cur.execute("SELECT COUNT(*) FROM leads WHERE job_id = %s", (job_id,))
         return cur.fetchone()[0]
 
-    # get the last start position and completed status of a query
     def get_query_progress(self, query):
         cur = self.conn.cursor()
         cur.execute(
@@ -125,20 +126,35 @@ class Database:
         cur = self.conn.cursor()
         cur.execute(
             """
+<<<<<<< HEAD
             INSERT INTO jobs (user_email, name, lead_type, status, triggered_at, updated_at, location, job_title,target_leads,industry,custom_keywords)
             VALUES (%s, %s, %s, %s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s,%s,%s,%s,%s)
+=======
+            INSERT INTO jobs (
+                user_email, name, lead_type, status,
+                triggered_at, updated_at,
+                location, job_title, target_leads, industry
+            )
+            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s, %s, %s, %s)
+>>>>>>> 667e84d2f3ad52c08db4a09e490ce78c8720e2c1
             RETURNING id
-        """,
+            """,
             (
                 job_details.get('email'),
                 job_details.get('job_name'),
                 job_details.get('lead_type'),
                 "running",
                 job_details.get('location'),
+<<<<<<< HEAD
                 job_details.get('job_title',""),
                 job_details.get('target_num'),
                 job_details.get('industry'),
                 job_details.get('custom_keywords')
+=======
+                job_details.get('job_title'),
+                job_details.get('target_num'),
+                job_details.get('industry'),   # ← new
+>>>>>>> 667e84d2f3ad52c08db4a09e490ce78c8720e2c1
             ),
         )
         result = cur.fetchone()
@@ -183,38 +199,31 @@ UPDATE jobs SET status = 'running' WHERE user_email = %s and id=%s
             """
             UPDATE query_progress SET last_start_position = %s, completed = %s, updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
-        """,
+            """,
             (start_position, completed, job_id),
         )
         result = cur.fetchone()
         self.conn.commit()
         return result[0] if result else 0
 
-    def mark_job_completed(self, job_id,status,final_count=0):
+    def mark_job_completed(self, job_id, status, final_count=0):
         cur = self.conn.cursor()
-
         cur.execute(
             """
             UPDATE jobs SET status = %s, updated_at = CURRENT_TIMESTAMP, leads = %s
             WHERE id = %s
-        """,
-            (status, final_count,job_id),
+            """,
+            (status, final_count, job_id),
         )
         self.conn.commit()
         cur.close()
         return
-        
 
     def look_for_unfinished(self):
         cur = self.conn.cursor()
-        cur.execute(
-            """
-        SELECT * FROM query_progress 
-"""
-        )
+        cur.execute("SELECT * FROM query_progress")
         pass
 
-    
     # --- Schools ---
     async def school_exists(self, fingerprint):
         result = await self.conn.fetchval(
@@ -285,4 +294,10 @@ async def init_db(pool):
                 completed BOOLEAN DEFAULT FALSE,
                 updated_at TIMESTAMP
             )
+<<<<<<< HEAD
         """)
+=======
+        """)
+
+Database().mark_job_completed(107, "complete", 13)
+>>>>>>> 667e84d2f3ad52c08db4a09e490ce78c8720e2c1
