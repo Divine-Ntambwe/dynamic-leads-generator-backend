@@ -8,22 +8,24 @@ class ScraperOrchestrator:
     def __init__(self, scrape_request,job_id):
         self.scrape_request = scrape_request
         self.db = Database()
-        self.scraper = Scraper(self.db)
+        self.scraper = Scraper()
         self.query_builder = queryBuilder()
         self.job_id = job_id
         self.query_harvester = queryHarvest()
         self.target_num = scrape_request.get('target_num','')
 
-    async def run(self):
+    async def run(self,rerun=False):
         print("data sent",self.scrape_request,self.target_num)
         #generate multiple queries(array form) to search by:
-        queries = self.query_builder.generate_queries(self.scrape_request)
-        print(f"Generated {len(queries)} search queries")
-        print(queries)
-        final_count = 0
-        
+        if rerun == False:
+            queries = self.query_builder.generate_queries(self.scrape_request)
+            print(f"Generated {len(queries)} search queries")
+            print(queries)
+            final_count = 0
+        else:
+            queries = rerun["queries"]
         job_id = self.job_id
-        
+        # await asyncio.sleep(120)
         # return
         #loop through the queries, use them in SerpAPI and scrapes the urls returned by each query
         for idx, query in enumerate(queries, 1):

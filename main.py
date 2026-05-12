@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from typing import Optional
 from database import init_db
 from orchestrator import ScraperOrchestrator
+from scrapper import Scraper
 
 
 from database import Database
@@ -77,6 +78,8 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
+
+    print("Shutting down, closing DB pool...")
     await pool.close()
 
 # --- Auth helpers ---
@@ -98,10 +101,10 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
 
 # --- Async wrapper for blocking orchestrator ---
-async def run_scraper_task(orchestrator):
+async def run_scraper_task(orchestrator, rerun=False):
     """Run orchestrator.run() in a thread pool to avoid blocking the event loop"""
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(executor, lambda: asyncio.run(orchestrator.run()))
+    await loop.run_in_executor(executor, lambda: asyncio.run(orchestrator.run(rerun)))
 
 
 # --- Models ---
@@ -114,14 +117,14 @@ class ScrapeRequest(BaseModel):
     job_name: str = None
     location: str = None
     industry: Optional[str] = None
+    lead_type: str = None
+    email: Optional[str] = None
     job_position: Optional[str] = None
     job_title: Optional[str] = None
     employee_range: Optional[int] = 0
     custom_keywords: Optional[str] = None
     custom_type: Optional[str] = None
     target_num: Optional[int] = 0
-    lead_type: str = None
-    email: Optional[str] = None
 
 
 
@@ -147,12 +150,13 @@ async def scrape(
 
         # Run orchestrator in background thread pool to avoid blocking the event loop
         orchestrator = ScraperOrchestrator(formData, job_id)
-        result = await orchestrator.run()
-        # background_tasks.add_task(run_scraper_task, orchestrator)
+        # result = await orchestrator.run()
+        background_tasks.add_task(run_scraper_task, orchestrator)
         
 
-        # print(f"Job {job_id} started in background")
-        return {"message": "Scraping completed successfully", "job_id": job_id, "status": "completed", "leads_found": result}
+        print(f"Job {job_id} started in background")
+        return {"message": "Scraping started successfully", "job_id": job_id, "status": "started"}
+        # return {"message": "Scraping completed successfully", "job_id": job_id, "status": "completed", "leads_found": result}
    
     except Exception as e:
         # Update job status to failed
@@ -184,13 +188,21 @@ async def get_job_status(job_id: int, username: str = Depends(verify_token), con
     if not row:
         raise HTTPException(status_code=404, detail="Job not found")
         
+    leads = Scraper().get_leads_count()  
+    
+    if row["target_leads"] >= 10:
+        
+        batches = leads // 10 
+    else: 
+        batches = 1
     
     return {
         "id": row["id"],
         "name": row["name"],
         "status": row["status"],
         "lead_type": row["lead_type"],
-        "leads": row["leads"],
+        "leads": leads,
+        "batches":batches,
         "target_leads": row["target_leads"],
         "triggered_at": row["triggered_at"].isoformat() if row["triggered_at"] else None,
         "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
@@ -266,3 +278,25 @@ async def mark_lead(lead_id: int, username: str = Depends(verify_token), conn=De
     if not row:
         raise HTTPException(status_code=404, detail="Lead not found")
     return {"id": row["id"], "marked": row["marked"]}
+
+
+@app.post("/jobs/{job_id}/rerun")
+async def rerun_job(job_id: int, background_tasks:BackgroundTasks,username: str = Depends(verify_token)):
+
+    try:
+        rerun_results = Database().re_run_job(job_id,username)
+        if rerun_results and len(rerun_results) > 0:
+            rerun = {
+                "rerun":True,
+                "queries":[rerun_results[0]]
+            }
+            orchestrator = ScraperOrchestrator(rerun_results[1], job_id)
+            
+            background_tasks.add_task(run_scraper_task, orchestrator,rerun)
+            print(f"Job {job_id} started in background")
+        else:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return {"message":"started"}
+    except:
+        pass
+    

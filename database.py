@@ -40,10 +40,10 @@ class Database:
             return 0
         
 
-    def url_exists(self,user_email, query_str, url):
+    def url_exists(self,user_email, query_str, url,job_id=None):
         
         cur = self.conn.cursor()
-
+        
         sql = """
         SELECT job_id FROM visited_urls 
         WHERE 
@@ -53,7 +53,6 @@ class Database:
             
         LIMIT 1;
         """
-
         cur.execute(sql, (query_str, url))
         result = cur.fetchone()
         if result is None:
@@ -126,8 +125,8 @@ class Database:
         cur = self.conn.cursor()
         cur.execute(
             """
-            INSERT INTO jobs (user_email, name, lead_type, status, triggered_at, updated_at, location, job_title,target_leads)
-            VALUES (%s, %s, %s, %s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s,%s,%s)
+            INSERT INTO jobs (user_email, name, lead_type, status, triggered_at, updated_at, location, job_title,target_leads,industry,custom_keywords)
+            VALUES (%s, %s, %s, %s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s,%s,%s,%s,%s)
             RETURNING id
         """,
             (
@@ -136,14 +135,48 @@ class Database:
                 job_details.get('lead_type'),
                 "running",
                 job_details.get('location'),
-                job_details.get('job_title'),
-                job_details.get('target_num')
+                job_details.get('job_title',""),
+                job_details.get('target_num'),
+                job_details.get('industry'),
+                job_details.get('custom_keywords')
             ),
         )
         result = cur.fetchone()
         self.conn.commit()
         return result[0] if result else 0
-
+    
+    def re_run_job(self, job_id, user_email):
+        cur = self.conn.cursor()
+        cur.execute("""
+                SELECT user_email,name,lead_type,target_leads FROM jobs WHERE id = %s AND user_email = %s
+                    """, (job_id, user_email))
+        self.conn.commit()
+        result = cur.fetchone()
+        if result is None:
+            return None
+        else:
+            job_details = {
+                "email":result[0],
+                "job_name":result[1],
+                "lead_type":result[2],
+                "target_num": result[3]
+            }
+            cur.execute("""
+                SELECT query completed FROM visited_urls WHERE job_id = %s LIMIT 1
+                        """, (job_id,))
+            query_result = cur.fetchall()
+    
+            if len(query_result) == 0:
+                return None
+            else:
+                cur.execute(
+                    """
+UPDATE jobs SET status = 'running' WHERE user_email = %s and id=%s
+""", (user_email,job_id)
+                )
+                print([query_result[0][0],job_details])
+                return [query_result[0][0],job_details]
+                    
     def update_query_progress(self, job_id, start_position, completed=False):
         cur = self.conn.cursor()
         cur.execute(
@@ -253,5 +286,3 @@ async def init_db(pool):
                 updated_at TIMESTAMP
             )
         """)
-
-Database().mark_job_completed(107,"complete",13)

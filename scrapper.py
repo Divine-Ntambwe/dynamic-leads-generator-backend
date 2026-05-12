@@ -64,13 +64,20 @@ EXCLUDE_SELECTORS = ", ".join([
 
 
 class Scraper:
-    def __init__(self, db):
-        self.db = db
-        
+    def __init__(self):
+        self.db = Database()
+        self.count = 0
+
+    def get_leads_count(self):
+        print(self.count)
+        return self.count;
+
+    def inc_count(self,num = 1):
+        self.count += num
 
     async def scrape_urls(self, urls, target_schools,job_id,job_details):
         leads = []
-        count = 1
+        
         print("stop",target_schools)
         job_details = {"job_id":job_id,**job_details}
         lead_type = job_details.get("lead_type","")
@@ -84,8 +91,8 @@ class Scraper:
     
         
         for url in urls:
-            if count > target_schools:
-                print(f"Reached target school count during scraping {count}")
+            if self.count >= target_schools:
+                print(f"Reached target school count during scraping {self.count}")
                 break
             
             if not url.find("linkedin") == -1 :
@@ -137,26 +144,7 @@ class Scraper:
             "delay_before_return_html":2.0,
             "word_count_threshold":10,
             
-            # "scrapping_strategy":LXMLWebScrapingStrategy()
-            # "stream":True,
-            
             "deep_crawl_strategy":None,
-            # deepcrawl,
-            # {
-            #     "type":"BestFirstCrawlingStrategy",
-            #     "params":{
-            #         "max_depth":2,
-            #         "include_external":False,
-            #         "url_scorer":{
-            #             "type":"KeywordRelevanceScorer",
-            #             "params": {
-            #                 "keywords": keywords,
-            #                 "weight":0.8
-            #             }
-            #         },
-            #         "max_pages":15
-            #     },
-            #     },
             "extraction_strategy": {
                 "type": "LLMExtractionStrategy",
                 "params": {
@@ -267,13 +255,13 @@ class Scraper:
                         leads.append({**job_details, **content})
                         url_lead_added = True
 
-                print("FINAL DATA",leads)
-                print(f'link {count} + found {len(leads)}')
 
                 if url_lead_added:
                     self.db.mark_url_visited(url,job_id)
-                    count += 1
+                    self.inc_count()
 
+                print("FINAL DATA",leads)
+                print(f'link {self.count} + found {len(leads)}')
             except Exception as e:
                 print(f"Error scraping {url}: {e}")
         print(f'url is {url} is done')
