@@ -40,15 +40,10 @@ class Database:
             self.conn.commit()
             return 0
 
-<<<<<<< HEAD
     def url_exists(self,user_email, query_str, url,job_id=None):
         
         cur = self.conn.cursor()
         
-=======
-    def url_exists(self, user_email, query_str, url):
-        cur = self.conn.cursor()
->>>>>>> 667e84d2f3ad52c08db4a09e490ce78c8720e2c1
         sql = """
         SELECT job_id FROM visited_urls 
         WHERE 
@@ -126,17 +121,8 @@ class Database:
         cur = self.conn.cursor()
         cur.execute(
             """
-<<<<<<< HEAD
             INSERT INTO jobs (user_email, name, lead_type, status, triggered_at, updated_at, location, job_title,target_leads,industry,custom_keywords)
             VALUES (%s, %s, %s, %s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s,%s,%s,%s,%s)
-=======
-            INSERT INTO jobs (
-                user_email, name, lead_type, status,
-                triggered_at, updated_at,
-                location, job_title, target_leads, industry
-            )
-            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s, %s, %s, %s)
->>>>>>> 667e84d2f3ad52c08db4a09e490ce78c8720e2c1
             RETURNING id
             """,
             (
@@ -145,16 +131,10 @@ class Database:
                 job_details.get('lead_type'),
                 "running",
                 job_details.get('location'),
-<<<<<<< HEAD
                 job_details.get('job_title',""),
                 job_details.get('target_num'),
                 job_details.get('industry'),
                 job_details.get('custom_keywords')
-=======
-                job_details.get('job_title'),
-                job_details.get('target_num'),
-                job_details.get('industry'),   # ← new
->>>>>>> 667e84d2f3ad52c08db4a09e490ce78c8720e2c1
             ),
         )
         result = cur.fetchone()
@@ -294,10 +274,4 @@ async def init_db(pool):
                 completed BOOLEAN DEFAULT FALSE,
                 updated_at TIMESTAMP
             )
-<<<<<<< HEAD
         """)
-=======
-        """)
-
-Database().mark_job_completed(107, "complete", 13)
->>>>>>> 667e84d2f3ad52c08db4a09e490ce78c8720e2c1

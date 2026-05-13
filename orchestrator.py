@@ -57,7 +57,7 @@ class ScraperOrchestrator:
             # Scrape the URLs
             details = {"job_name":self.scrape_request.get('job_name'),"lead_type":self.scrape_request.get('lead_type')}
             
-            leads = await self.scraper.scrape_urls(urls, self.target_num,job_id,details)
+            leads = self.scraper.scrape_urls(urls, self.target_num,job_id,details)
 
             if leads:
                 inserted = self.db.bulk_insert_leads(leads)
@@ -68,15 +68,17 @@ class ScraperOrchestrator:
                 print(f"No leads extracted from URLs for query:{query}")
         
         # print(f"\n{'='*60}")
-        if final_count > 0:
+        if final_count >= self.target_num:
             self.db.mark_job_completed(job_id,"complete",final_count)
             print(f"Scraping completed!")
             print(f"Final count: {final_count}/{self.target_num} leads")
+        elif final_count == 0:
+            self.db.mark_job_completed(job_id,"failed",final_count)
+            print(f"Could not extract any leads from the scraped URLs.")  
         else:
             self.db.mark_job_completed(job_id,"complete",final_count)
             print(f"Scraping completed but target not reached.")
-            print(f"Final count: {final_count}/{self.target_num} leads")    
-
+            print(f"Final count: {final_count}/{self.target_num} leads")
 
 # async def test():
 #     await ScraperOrchestrator(2).run()

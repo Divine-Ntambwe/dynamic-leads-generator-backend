@@ -189,21 +189,15 @@ async def get_job_status(job_id: int, username: str = Depends(verify_token), con
     if not row:
         raise HTTPException(status_code=404, detail="Job not found")
         
-    leads = Scraper().get_leads_count()  
-    
-    if row["target_leads"] >= 10:
-        
-        batches = leads // 10 
-    else: 
-        batches = 1
-    
+   
+    i = Scraper().get_leads_count()
+    print("COUNT:", i)
     return {
         "id": row["id"],
         "name": row["name"],
         "status": row["status"],
         "lead_type": row["lead_type"],
-        "leads": leads,
-        "batches":batches,
+        "leads": Scraper().get_leads_count(),
         "target_leads": row["target_leads"],
         "triggered_at": row["triggered_at"].isoformat() if row["triggered_at"] else None,
         "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
