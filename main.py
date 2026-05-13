@@ -197,7 +197,7 @@ async def get_job_status(job_id: int, username: str = Depends(verify_token), con
         "name": row["name"],
         "status": row["status"],
         "lead_type": row["lead_type"],
-        "leads": 0,
+        "leads": i,
         "target_leads": row["target_leads"],
         "triggered_at": row["triggered_at"].isoformat() if row["triggered_at"] else None,
         "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,

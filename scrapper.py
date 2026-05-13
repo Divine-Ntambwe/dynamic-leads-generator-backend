@@ -72,6 +72,7 @@ class Scraper:
         self.count = 0
         self.count_lock = threading.Lock()
         self._initialized = True
+        
 
     def get_leads_count(self):
         with self.count_lock:
@@ -87,7 +88,7 @@ class Scraper:
         with self.count_lock:
             return self.count >= target_schools
    
-    def _scrape_single_url(self, url, target_schools, job_id, job_details, lead_type, instruction):
+    def _scrape_single_url(self, url, target_schools, job_id, job_details, lead_type, instruction,total_leads):
         """Scrape a single URL and return leads. Designed for concurrent execution."""
         url_leads = []
         
@@ -250,8 +251,10 @@ class Scraper:
             if url_lead_added:
                 self.db.mark_url_visited(url, job_id)
                 self.inc_count()
+                total_leads.append(current_leads)
                 print(f"Leads extracted from {url}: {current_leads}")
             else:
+                self.db.mark_url_visited(url, job_id)
                 print(f"No leads extracted from {url} {content}")
             print(f"Total count: {self.get_leads_count()}")
         
@@ -263,6 +266,7 @@ class Scraper:
     def scrape_urls(self, urls, target_schools, job_id, job_details):
         """Scrape multiple URLs concurrently using ThreadPoolExecutor with 5 workers."""
         all_leads = []
+        total_leads = []
         
         print(f"Starting concurrent scraping of {len(urls)} URLs with target: {target_schools}")
         job_details_prepared = {"job_id": job_id, **job_details}
@@ -288,28 +292,34 @@ class Scraper:
                     job_id,
                     job_details,
                     lead_type,
-                    instruction
+                    instruction,
+                    total_leads
                 )
                 for url in urls
             ]
             
             # Collect results as they complete
+            target_reached = False
             for future in futures:
                 try:
                     url_leads = future.result()
-                    all_leads.extend(url_leads)
                     
-                    # Check if we've reached target count
+                    # Only add leads if we haven't reached target yet
                     with self.count_lock:
-                        if self.count >= target_schools:
-                            print(f"Target count reached: {self.count}/{target_schools}. Stopping further processing.")
-                            break
+                        if self.count < target_schools:
+                            all_leads.extend(url_leads)
+                        elif not target_reached:
+                            print(f"Target count reached: {self.count}/{target_schools}. Continuing to collect remaining results.")
+                            target_reached = True
                 except Exception as e:
                     print(f"Error in concurrent execution: {e}")
         
-        print(f"Concurrent scraping complete. Total leads found: {len(all_leads)}. Total URLs processed: {self.count}")
+        print(f"Concurrent scraping complete. Total leads found: {len(all_leads)}.Total All:  {len(total_leads)} Total URLs processed: {self.count}")
         self.count = 0
-        return all_leads
+        if len(all_leads) > len(total_leads):
+            return all_leads 
+        else:
+            return total_leads
 
 
 # Example usage (commented out):
