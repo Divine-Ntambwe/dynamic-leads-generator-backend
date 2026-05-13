@@ -303,6 +303,7 @@ class Scraper:
                     print(f"Error in concurrent execution: {e}")
         
         print(f"Concurrent scraping complete. Total leads found: {len(all_leads)}. Total URLs processed: {self.count}")
+        self.count = 0
         return all_leads
 
 
