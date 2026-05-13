@@ -190,7 +190,7 @@ async def get_job_status(job_id: int, username: str = Depends(verify_token), con
         raise HTTPException(status_code=404, detail="Job not found")
         
    
-    # i = Scraper().get_leads_count()
+    i = Scraper().get_leads_count()
     # print("COUNT:", i)
     return {
         "id": row["id"],

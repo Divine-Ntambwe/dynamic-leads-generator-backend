@@ -82,15 +82,19 @@ class Scraper:
         with self.count_lock:
             self.count += num
 
+    def _should_stop(self, target_schools):
+        """Check if we've reached the target without modifying state"""
+        with self.count_lock:
+            return self.count >= target_schools
+   
     def _scrape_single_url(self, url, target_schools, job_id, job_details, lead_type, instruction):
         """Scrape a single URL and return leads. Designed for concurrent execution."""
         url_leads = []
         
         # Check if we've reached target count
-        with self.count_lock:
-            if self.count >= target_schools:
-                print(f"Target count reached: {self.count}/{target_schools}")
-                return url_leads
+        if self._should_stop(target_schools):
+            print(f"Target already reached, skipping {url}")
+            return url_leads
         
         # Determine deep crawl strategy
         if "linkedin" in url:
@@ -246,6 +250,7 @@ class Scraper:
             if url_lead_added:
                 self.db.mark_url_visited(url, job_id)
                 self.inc_count()
+                print(f"Leads extracted from {url}: {current_leads}")
             else:
                 print(f"No leads extracted from {url} {content}")
             print(f"Total count: {self.get_leads_count()}")
